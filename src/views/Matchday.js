@@ -54,6 +54,11 @@ function renderTicker(match) {
 
 export function renderMatchday(state) {
   const { fixtures } = getCurrentMatchdayViewModel(state);
+  const completedIds = new Set(state.completedMatches.map((match) => match.id));
+  const hasCompletedUserMatch = fixtures.some((fixture) => fixture.isUserMatch && completedIds.has(fixture.id));
+  const hasRemainingMatches = fixtures.some((fixture) => !completedIds.has(fixture.id));
+  const simulateMatchdayLabel = hasCompletedUserMatch ? 'Restliche Spiele simulieren' : 'Spieltag simulieren';
+  const simulateMatchdayDisabled = !hasRemainingMatches ? ' disabled' : '';
 
   return `
     <div class="matchday-view">
@@ -67,9 +72,9 @@ export function renderMatchday(state) {
       </div>
 
       <div class="matchday-actions">
-        <button data-action="simulate-matchday" type="button">Spieltag simulieren</button>
+        <button data-action="simulate-matchday" type="button"${simulateMatchdayDisabled}>${simulateMatchdayLabel}</button>
         <button data-action="watch-live" type="button">Mein Spiel live ansehen</button>
-        <button data-action="simulate-remaining" type="button">Restliche Spiele simulieren</button>
+        <button data-action="simulate-remaining" type="button"${simulateMatchdayDisabled}>Restliche Spiele simulieren</button>
       </div>
 
       <section>

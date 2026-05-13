@@ -148,25 +148,39 @@ function advanceMonthlyDevelopment(state, matchdayNumber) {
   return developmentMessages;
 }
 
+function isUserMatch(state, match) {
+  return Boolean(
+    match
+      && state.selectedClub
+      && (match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id),
+  );
+}
+
+function getCompletedMatchdayResults(state, matchday) {
+  if (!matchday) return [];
+
+  const completedById = new Map(state.completedMatches.map((match) => [match.id, match]));
+  return matchday.matches.map((match) => completedById.get(match.id)).filter(Boolean);
+}
+
 function storeMatchdayResults(state, matchday, results, { advanceMatchday = true } = {}) {
   const existingIds = new Set(state.completedMatches.map((match) => match.id));
   const newResults = results.filter((match) => !existingIds.has(match.id));
 
   state.completedMatches.push(...newResults);
-  state.latestMatchdayResults = results;
-  state.liveMatch = results.find(
-    (match) => match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id,
-  ) ?? results[0] ?? null;
-  const userResult = results.find(
-    (match) => match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id,
-  );
-  const moodMessages = applyMatchMood(state.squad, userResult, state.selectedClub.id, {
+  const matchdayResults = getCompletedMatchdayResults(state, matchday);
+  state.latestMatchdayResults = matchdayResults;
+
+  const userResult = matchdayResults.find((match) => isUserMatch(state, match));
+  const newUserResult = newResults.find((match) => isUserMatch(state, match));
+  state.liveMatch = userResult ?? (isUserMatch(state, state.liveMatch) ? state.liveMatch : matchdayResults[0] ?? null);
+  const moodMessages = applyMatchMood(state.squad, newUserResult, state.selectedClub.id, {
     fatigueReduction: getMedicalFatigueReduction(state),
   });
   const developmentMessages = advanceMonthlyDevelopment(state, matchday.matchday);
   const youthMessages = maybeGenerateYouthPlayer(state, matchday.matchday);
   const incomeAlreadyProcessed = state.incomeProcessedMatchdays.includes(matchday.matchday);
-  const income = incomeAlreadyProcessed ? { total: 0 } : calculateWeeklyUpgradeIncome(state, userResult);
+  const income = incomeAlreadyProcessed ? { total: 0 } : calculateWeeklyUpgradeIncome(state, newUserResult);
   const incomeMessages = income.total > 0 ? [`Vereinsausbau zahlt sich aus: +${income.total.toLocaleString('de-DE')} € Einnahmen.`] : [];
   if (!incomeAlreadyProcessed) {
     state.transferBudget += income.total;
@@ -190,13 +204,13 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
   }
 
   const achievementMessages = evaluateAchievements(state, {
-    userResult,
+    userResult: newUserResult,
     seasonFinished: matchday.matchday >= state.schedule.length,
     cupWinnerId,
   });
 
   recalculateTable(state);
-  addNewsItems(state, generateMatchdayNews({ state, matchday, results, userResult }));
+  addNewsItems(state, generateMatchdayNews({ state, matchday, results: matchdayResults, userResult }));
 
   state.messages = [
     `Spieltag ${matchday.matchday} abgeschlossen: ${results.length} Partien wurden simuliert.`,
