@@ -31,16 +31,16 @@ export function renderTable(state) {
       return `
         <div class="standings-row zone-${zone.key}${isUserClub ? ' user-club-row' : ''}">
           <span class="standings-position">${row.position}</span>
-          <strong>${row.club}</strong>
-          <span>${row.played}</span>
-          <span>${row.won}</span>
-          <span>${row.drawn}</span>
-          <span>${row.lost}</span>
-          <span>${row.goalsFor}</span>
-          <span>${row.goalsAgainst}</span>
-          <span>${formatGoalDifference(row.goalDifference)}</span>
-          <strong>${row.points}</strong>
-          <small>${zone.label}</small>
+          <strong class="standings-club">${row.club}</strong>
+          <span class="standings-played">${row.played}</span>
+          <span class="standings-won">${row.won}</span>
+          <span class="standings-drawn">${row.drawn}</span>
+          <span class="standings-lost">${row.lost}</span>
+          <span class="standings-goals-for">${row.goalsFor}</span>
+          <span class="standings-goals-against">${row.goalsAgainst}</span>
+          <span class="standings-goal-difference">${formatGoalDifference(row.goalDifference)}</span>
+          <strong class="standings-points">${row.points}</strong>
+          <small class="standings-zone-label">${zone.label}</small>
         </div>
       `;
     })
@@ -60,7 +60,7 @@ export function renderTable(state) {
           <span>S</span>
           <span>U</span>
           <span>N</span>
-          <span>Tore</span>
+          <span>TF</span>
           <span>GT</span>
           <span>TD</span>
           <span>Pts.</span>

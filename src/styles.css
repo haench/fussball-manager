@@ -273,7 +273,7 @@ h2 {
   border-radius: 16px;
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: minmax(160px, 1.4fr) 0.5fr 0.6fr minmax(240px, 2fr) 0.8fr 1.1fr 0.9fr;
+  grid-template-columns: minmax(160px, 1.4fr) 0.5fr 0.6fr 0.8fr minmax(210px, 1.45fr) minmax(150px, 1fr) 0.9fr;
   min-width: 980px;
   padding: 1rem;
 }
@@ -322,6 +322,25 @@ h2 {
   gap: 0.4rem;
 }
 
+.potential-score {
+  color: #1f5f32;
+}
+
+.player-details {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.player-details summary {
+  color: #1f5f32;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.player-details .skill-list {
+  margin-top: 0.55rem;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 1rem;
@@ -343,13 +362,64 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .squad-table {
+    overflow-x: visible;
+  }
+
   .squad-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name strength"
+      "position potential"
+      "mood mood"
+      "details details";
     min-width: 0;
+  }
+
+  .player-card {
+    border-radius: 22px;
+    box-shadow: 0 12px 34px rgba(18, 58, 27, 0.1);
   }
 
   .squad-header {
     display: none;
+  }
+
+  .player-name {
+    grid-area: name;
+  }
+
+  .position-badge {
+    grid-area: position;
+    justify-self: start;
+  }
+
+  .strength-score {
+    grid-area: strength;
+    justify-self: end;
+  }
+
+  .potential-score {
+    grid-area: potential;
+    justify-self: end;
+  }
+
+  .player-mood {
+    grid-area: mood;
+  }
+
+  .player-skill-details {
+    border-top: 1px solid #d7e7d4;
+    grid-area: details;
+    padding-top: 0.75rem;
+  }
+
+  .market-value {
+    display: none;
+  }
+
+  .compact-symbols {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -830,13 +900,59 @@ select {
 }
 
 @media (max-width: 720px) {
+  .standings-table {
+    overflow-x: visible;
+  }
+
   .standings-row {
-    grid-template-columns: 1fr;
+    gap: 0.45rem 0.65rem;
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
     min-width: 0;
   }
 
-  .standings-header {
+  .standings-header,
+  .standings-played,
+  .standings-won,
+  .standings-drawn,
+  .standings-lost,
+  .standings-goal-difference,
+  .standings-zone-label {
     display: none;
+  }
+
+  .standings-position {
+    align-self: center;
+  }
+
+  .standings-club {
+    min-width: 0;
+  }
+
+  .standings-points {
+    background: #e8f4e5;
+    border-radius: 999px;
+    color: #1f5f32;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .standings-points::after {
+    content: " Pkt";
+    font-size: 0.78rem;
+  }
+
+  .standings-goals-for,
+  .standings-goals-against {
+    color: #4f664c;
+    font-weight: 900;
+  }
+
+  .standings-goals-for::before {
+    content: "Tore ";
+    font-size: 0.78rem;
+  }
+
+  .standings-goals-for::after {
+    content: ":";
   }
 
   .season-goal-card {

@@ -30,22 +30,31 @@ function renderSkillPills(player) {
     .join('');
 }
 
+function renderSkillDetails(player) {
+  return `
+    <details class="player-details">
+      <summary>Details</summary>
+      <div class="skill-list">${renderSkillPills(player)}</div>
+    </details>
+  `;
+}
+
 export function renderSquad(state) {
   const rows = state.squad
     .map(
       (player) => `
-        <div class="squad-row" role="row">
+        <article class="squad-row player-card" role="row">
           <div class="player-name" role="cell">
             <strong>${player.name}</strong>
             <small>${player.age} Jahre · Gehalt ${formatCompactBudget(player.salary)}</small>
           </div>
           <span class="position-badge" role="cell">${player.position}</span>
-          <strong class="strength-score" role="cell">${player.strength}</strong>
-          <div class="skill-list" role="cell">${renderSkillPills(player)}</div>
-          <span role="cell">Talent ${player.potential}</span>
-          <div role="cell">${renderPlayerSymbols(player)}</div>
-          <span role="cell">${formatBudget(player.marketValue)}</span>
-        </div>
+          <strong class="strength-score" role="cell" aria-label="Stärke ${player.strength}">${player.strength}</strong>
+          <strong class="potential-score" role="cell">Potenzial ${player.potential}</strong>
+          <div class="player-mood" role="cell">${renderPlayerSymbols(player)}</div>
+          <div class="player-skill-details" role="cell">${renderSkillDetails(player)}</div>
+          <span class="market-value" role="cell">${formatBudget(player.marketValue)}</span>
+        </article>
       `,
     )
     .join('');
@@ -67,9 +76,9 @@ export function renderSquad(state) {
           <span role="columnheader">Spieler</span>
           <span role="columnheader">Pos.</span>
           <span role="columnheader">Stärke</span>
-          <span role="columnheader">Fähigkeiten</span>
           <span role="columnheader">Potenzial</span>
-          <span role="columnheader">Laune</span>
+          <span role="columnheader">Form/Fitness/Moral</span>
+          <span role="columnheader">Details</span>
           <span role="columnheader">Wert</span>
         </div>
         ${rows}
