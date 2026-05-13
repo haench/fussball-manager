@@ -1,8 +1,8 @@
-import { getPlayersByTeamId } from '../data/players.js';
+import { getPlayersByTeamId, useFantasyPlayers, useImportedPlayers } from '../data/players.js';
 import { applyMatchMood, applyMonthlyDevelopment } from './development.js';
 import { buildBestLineup, createInitialLineup, defaultFormation, formations } from './lineup.js';
 import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
-import { leagues, teamsByLeague } from '../data/teams.js';
+import { activeDataMode, DATA_MODES, leagues, teamsByLeague as clubs, useFantasyTeams, useImportedTeams } from '../data/teams.js';
 import { calculateLeagueTable, createInitialTable, createSeasonGoal } from './table.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
@@ -21,8 +21,7 @@ import {
   sellPlayer,
 } from './transfers.js';
 
-export { leagues };
-export const clubs = teamsByLeague;
+export { activeDataMode, DATA_MODES, leagues, clubs };
 
 export const initialGameState = {
   selectedClub: null,
@@ -57,12 +56,51 @@ export const initialGameState = {
   youthPlayers: [],
   achievements: createInitialAchievementState(),
   feedbackEffects: [],
+  dataMode: DATA_MODES.FANTASY,
+  dataImportMessage: '',
 };
 
 export const gameState = structuredClone(initialGameState);
 
+function resetGameProgress(dataMode = activeDataMode, dataImportMessage = '') {
+  Object.assign(gameState, structuredClone(initialGameState), {
+    dataMode,
+    dataImportMessage,
+  });
+
+  return gameState;
+}
+
 export function createInitialSquad(teamId) {
   return getPlayersByTeamId(teamId);
+}
+
+export function getDataModeSummary() {
+  return {
+    mode: activeDataMode,
+    isRealImport: activeDataMode === DATA_MODES.REAL_IMPORT,
+    message: gameState.dataImportMessage,
+  };
+}
+
+export function resetToFantasyData() {
+  const fantasyTeams = useFantasyTeams();
+  useFantasyPlayers(fantasyTeams);
+  return resetGameProgress(DATA_MODES.FANTASY, 'Fantasiedaten sind aktiv.');
+}
+
+export function importPrivateRealData(payload) {
+  if (!Array.isArray(payload?.players) || payload.players.length === 0) {
+    throw new Error('Die JSON-Datei benötigt ein players-Array.');
+  }
+
+  const importedTeams = useImportedTeams(payload?.teams);
+  useImportedPlayers(payload?.players, importedTeams);
+
+  return resetGameProgress(
+    DATA_MODES.REAL_IMPORT,
+    `Privater Datenimport aktiv: ${importedTeams.length} Teams und ${payload.players.length} Spieler geladen.`,
+  );
 }
 
 function createTeamsById(league = null) {
@@ -343,6 +381,8 @@ export function startNewGame(club) {
     youthPlayers: [],
     achievements: createInitialAchievementState(),
     feedbackEffects: [],
+    dataMode: activeDataMode,
+    dataImportMessage: gameState.dataImportMessage,
     transferFilters: { ...defaultTransferFilters },
     transferLastResponse: '',
     playerTeamIds: createInitialPlayerTeamIds(),

@@ -10,7 +10,10 @@ export const transferResponses = {
 };
 
 const fiveMillion = 5_000_000;
-const teamsById = Object.fromEntries(teams.map((team) => [team.id, team]));
+
+function getTeamsById() {
+  return Object.fromEntries(teams.map((team) => [team.id, team]));
+}
 
 export const defaultTransferFilters = {
   name: '',
@@ -54,7 +57,7 @@ function getPlayerTeamId(state, player) {
 }
 
 function getClubValue(teamId) {
-  return teamsById[teamId]?.budget ?? 10_000_000;
+  return getTeamsById()[teamId]?.budget ?? 10_000_000;
 }
 
 function getAskingPrice(player, sellerTeamId) {
@@ -103,7 +106,7 @@ export function getTransferMarketPlayers(state, filters = state.transferFilters)
       return {
         ...player,
         teamId,
-        clubName: teamsById[teamId]?.name ?? 'Transfermarkt',
+        clubName: getTeamsById()[teamId]?.name ?? 'Transfermarkt',
         askingPrice: getAskingPrice(player, teamId),
         desiredSalary: getDesiredSalary(player),
       };

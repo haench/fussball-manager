@@ -2,13 +2,13 @@ import { teamsByLeague } from '../data/teams.js';
 
 const BUNDESLIGA_GOAL_RULES = [
   { minBudget: 80_000_000, type: 'champion', label: 'Meister werden', targetLabel: 'Platz 1', minPosition: 1, maxPosition: 1 },
-  { minBudget: 46_000_000, type: 'international', label: 'international qualifizieren', targetLabel: 'Platz 1–3', minPosition: 1, maxPosition: 3 },
-  { minBudget: 0, type: 'survival', label: 'Klassenerhalt', targetLabel: 'Platz 1–4', minPosition: 1, maxPosition: 4 },
+  { minBudget: 46_000_000, type: 'international', label: 'international qualifizieren', targetLabel: 'Platz 1–6', minPosition: 1, maxPosition: 6 },
+  { minBudget: 0, type: 'survival', label: 'Klassenerhalt', targetLabel: 'Platz 1–15', minPosition: 1, maxPosition: 15 },
 ];
 
 const SECOND_LEAGUE_GOAL_RULES = [
   { minBudget: 18_000_000, type: 'promotion', label: 'Aufstieg', targetLabel: 'Platz 1–2', minPosition: 1, maxPosition: 2 },
-  { minBudget: 0, type: 'survival', label: 'Klassenerhalt', targetLabel: 'Platz 1–5', minPosition: 1, maxPosition: 5 },
+  { minBudget: 0, type: 'survival', label: 'Klassenerhalt', targetLabel: 'Platz 1–15', minPosition: 1, maxPosition: 15 },
 ];
 
 function getLeagueTeams(leagueOrTeams) {
@@ -95,14 +95,14 @@ export function getTableZone(row, league) {
   if (league === '2. Bundesliga') {
     if (row.position <= 2) return { key: 'promotion', label: 'Aufstieg' };
     if (row.position === 3) return { key: 'relegation', label: 'Relegation' };
-    if (row.position >= 6) return { key: 'demotion', label: 'Abstieg' };
+    if (row.position >= 16) return { key: 'demotion', label: 'Abstieg' };
     return { key: 'neutral', label: 'Mittelfeld' };
   }
 
   if (row.position === 1) return { key: 'title', label: 'Meisterschaft' };
-  if (row.position <= 3) return { key: 'top', label: 'Topplätze' };
-  if (row.position === 5) return { key: 'relegation', label: 'Relegation' };
-  if (row.position >= 6) return { key: 'demotion', label: 'Abstieg' };
+  if (row.position <= 4) return { key: 'top', label: 'Topplätze' };
+  if (row.position === 16) return { key: 'relegation', label: 'Relegation' };
+  if (row.position >= 17) return { key: 'demotion', label: 'Abstieg' };
   return { key: 'neutral', label: 'Mittelfeld' };
 }
 
