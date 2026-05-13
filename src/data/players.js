@@ -1,4 +1,5 @@
 import { createDevelopmentPlayer, getPotentialLabel } from '../game/development.js';
+import { DATA_MODES, teams } from './teams.js';
 
 export const supportedPositions = ['TW', 'IV', 'AV', 'DM', 'ZM', 'OM', 'Flügel', 'ST'];
 
@@ -23,55 +24,111 @@ const rosterBlueprint = [
   { suffix: 'Joker', position: 'ST', age: 21, strength: 69, pace: 75, shooting: 76, passing: 55, defending: 31, goalkeeping: 7, potential: 82 },
 ];
 
-const teamSeeds = {
-  alpental: { prefix: 'Ari', valueBoost: 1.45, salaryBoost: 1.4 },
-  hafenstadt: { prefix: 'Hanno', valueBoost: 1.25, salaryBoost: 1.2 },
-  ruhrstadt: { prefix: 'Rudi', valueBoost: 1.18, salaryBoost: 1.12 },
-  mainburg: { prefix: 'Mika', valueBoost: 1.1, salaryBoost: 1.08 },
-  neckarau: { prefix: 'Niko', valueBoost: 1, salaryBoost: 1 },
-  spreewald: { prefix: 'Sami', valueBoost: 0.92, salaryBoost: 0.94 },
-  elbe: { prefix: 'Eddi', valueBoost: 0.68, salaryBoost: 0.72 },
-  kohlenpott: { prefix: 'Kalle', valueBoost: 0.64, salaryBoost: 0.68 },
-  isar: { prefix: 'Ilja', valueBoost: 0.6, salaryBoost: 0.64 },
-  weinstadt: { prefix: 'Willi', valueBoost: 0.56, salaryBoost: 0.6 },
-  kuesten: { prefix: 'Kimi', valueBoost: 0.52, salaryBoost: 0.56 },
-  waldhain: { prefix: 'Waldi', valueBoost: 0.48, salaryBoost: 0.52 },
-};
+const fantasyPrefixes = [
+  'Ari', 'Hanno', 'Rudi', 'Mika', 'Niko', 'Sami', 'Henri', 'Dario', 'Benno', 'Noah', 'Silas', 'Theo', 'Wes', 'Erik', 'Lio', 'Oskar', 'Fiete', 'Malte',
+  'Eddi', 'Kalle', 'Ilja', 'Willi', 'Kimi', 'Waldi', 'Falk', 'Robin', 'Sven', 'Wim', 'Gero', 'Kilian', 'Moritz', 'Quirin', 'Reno', 'Sten', 'Timo', 'Wenzel',
+];
 
 function roundToNearest(value, step) {
   return Math.round(value / step) * step;
 }
 
-export const players = Object.entries(teamSeeds).flatMap(([teamId, seed], teamIndex) =>
-  rosterBlueprint.map((blueprint, playerIndex) => {
-    const strengthOffset = Math.max(-6, 3 - teamIndex) + (playerIndex % 3) - 1;
-    const strength = Math.min(86, Math.max(58, blueprint.strength + strengthOffset));
-    const potential = Math.min(90, Math.max(strength, blueprint.potential + Math.floor((3 - teamIndex) / 2)));
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
 
-    return {
-      id: `${teamId}-${playerIndex + 1}`,
-      name: `${seed.prefix} ${blueprint.suffix}`,
-      teamId,
-      position: blueprint.position,
-      strength,
-      pace: Math.min(95, Math.max(25, blueprint.pace + strengthOffset)),
-      shooting: Math.min(95, Math.max(10, blueprint.shooting + strengthOffset)),
-      passing: Math.min(95, Math.max(10, blueprint.passing + strengthOffset)),
-      defending: Math.min(95, Math.max(10, blueprint.defending + strengthOffset)),
-      goalkeeping: Math.min(95, Math.max(1, blueprint.goalkeeping + (blueprint.position === 'TW' ? strengthOffset : 0))),
-      age: blueprint.age + (teamIndex % 4) - 1,
-      marketValue: roundToNearest((strength ** 2) * 1_250 * seed.valueBoost, 50_000),
-      salary: roundToNearest(strength * 1_850 * seed.salaryBoost, 1_000),
-      potential: getPotentialLabel(potential, strength),
-      potentialRating: potential,
-      form: 55 + (playerIndex % 5),
-      fitness: 82 - (playerIndex % 4),
-      morale: 60 + (playerIndex % 6),
+function createFantasyPlayers(teamList = teams) {
+  return teamList.flatMap((team, teamIndex) => {
+    const seed = {
+      prefix: fantasyPrefixes[teamIndex] ?? `Talent${teamIndex + 1}`,
+      valueBoost: clamp(team.budget / 45_000_000, 0.42, 1.65),
+      salaryBoost: clamp(team.budget / 48_000_000, 0.45, 1.55),
     };
-  }),
-);
+
+    return rosterBlueprint.map((blueprint, playerIndex) => {
+      const budgetTier = Math.round((team.budget - 28_000_000) / 9_000_000);
+      const strengthOffset = clamp(budgetTier, -7, 4) + (playerIndex % 3) - 1;
+      const strength = clamp(blueprint.strength + strengthOffset, 58, 86);
+      const potential = clamp(blueprint.potential + Math.floor(budgetTier / 2), strength, 90);
+
+      return {
+        id: `${team.id}-${playerIndex + 1}`,
+        name: `${seed.prefix} ${blueprint.suffix}`,
+        teamId: team.id,
+        position: blueprint.position,
+        strength,
+        pace: clamp(blueprint.pace + strengthOffset, 25, 95),
+        shooting: clamp(blueprint.shooting + strengthOffset, 10, 95),
+        passing: clamp(blueprint.passing + strengthOffset, 10, 95),
+        defending: clamp(blueprint.defending + strengthOffset, 10, 95),
+        goalkeeping: clamp(blueprint.goalkeeping + (blueprint.position === 'TW' ? strengthOffset : 0), 1, 95),
+        age: blueprint.age + (teamIndex % 4) - 1,
+        marketValue: roundToNearest((strength ** 2) * 1_250 * seed.valueBoost, 50_000),
+        salary: roundToNearest(strength * 1_850 * seed.salaryBoost, 1_000),
+        potential: getPotentialLabel(potential, strength),
+        potentialRating: potential,
+        form: 55 + (playerIndex % 5),
+        fitness: 82 - (playerIndex % 4),
+        morale: 60 + (playerIndex % 6),
+        dataMode: DATA_MODES.FANTASY,
+        nameMode: DATA_MODES.FANTASY,
+      };
+    });
+  });
+}
+
+function normalizeNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.round(clamp(number, min, max));
+}
+
+function normalizeImportedPlayer(player, index, teamIds) {
+  const teamId = typeof player?.teamId === 'string' && teamIds.has(player.teamId) ? player.teamId : [...teamIds][index % teamIds.size];
+  const strength = normalizeNumber(player?.strength, 66, 1, 99);
+  const potentialRating = normalizeNumber(player?.potentialRating ?? player?.potential, strength, strength, 99);
+
+  return {
+    id: typeof player?.id === 'string' && player.id.trim() ? player.id.trim() : `${teamId}-import-${index + 1}`,
+    name: typeof player?.name === 'string' && player.name.trim() ? player.name.trim() : `Import Spieler ${index + 1}`,
+    teamId,
+    position: supportedPositions.includes(player?.position) ? player.position : 'ZM',
+    strength,
+    pace: normalizeNumber(player?.pace, strength, 1, 99),
+    shooting: normalizeNumber(player?.shooting, strength, 1, 99),
+    passing: normalizeNumber(player?.passing, strength, 1, 99),
+    defending: normalizeNumber(player?.defending, strength, 1, 99),
+    goalkeeping: normalizeNumber(player?.goalkeeping, player?.position === 'TW' ? strength : 10, 1, 99),
+    age: normalizeNumber(player?.age, 24, 16, 45),
+    marketValue: normalizeNumber(player?.marketValue, strength ** 2 * 1_000, 0, 500_000_000),
+    salary: normalizeNumber(player?.salary, strength * 1_500, 0, 10_000_000),
+    potential: getPotentialLabel(potentialRating, strength),
+    potentialRating,
+    form: normalizeNumber(player?.form, 55, 1, 99),
+    fitness: normalizeNumber(player?.fitness, 82, 1, 99),
+    morale: normalizeNumber(player?.morale, 60, 1, 99),
+    dataMode: DATA_MODES.REAL_IMPORT,
+    nameMode: DATA_MODES.REAL_IMPORT,
+  };
+}
+
+export let players = createFantasyPlayers();
+
+export function useFantasyPlayers(teamList = teams) {
+  players = createFantasyPlayers(teamList);
+  return players;
+}
+
+export function useImportedPlayers(playerList, teamList = teams) {
+  if (!Array.isArray(playerList) || playerList.length === 0) {
+    throw new Error('Die JSON-Datei benötigt ein players-Array.');
+  }
+
+  const teamIds = new Set(teamList.map((team) => team.id));
+  players = playerList.map((player, index) => normalizeImportedPlayer(player, index, teamIds));
+  return players;
+}
 
 export function getPlayersByTeamId(teamId) {
   return players.filter((player) => player.teamId === teamId).map(createDevelopmentPlayer);
 }
-

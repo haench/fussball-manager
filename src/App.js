@@ -3,6 +3,9 @@ import {
   clubs,
   gameState,
   leagues,
+  getDataModeSummary,
+  importPrivateRealData,
+  resetToFantasyData,
   resetTransferFilters,
   sellSquadPlayer,
   setBestLineup,
@@ -33,9 +36,12 @@ const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spiel
 let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
 let rootElement;
+let dataImportFeedback = '';
 
 function renderClubCards() {
-  return clubs[selectedLeague]
+  const leagueClubs = clubs[selectedLeague] ?? [];
+
+  return leagueClubs
     .map(
       (club) => `
         <article class="club-card">
@@ -47,6 +53,31 @@ function renderClubCards() {
       `,
     )
     .join('');
+}
+
+function renderDataModeNotice() {
+  const dataMode = getDataModeSummary();
+  const modeLabel = dataMode.isRealImport ? 'Privater realImport aktiv' : 'Veröffentlichbarer fantasy-Standard';
+
+  return `
+    <section class="data-mode-card" aria-label="Datenmodus">
+      <div>
+        <p class="eyebrow">Datenmodus: ${modeLabel}</p>
+        <h2>Diese Demo nutzt Fantasienamen.</h2>
+        <p>Du kannst privat eigene Daten importieren. Echte Vereins- oder Spielernamen werden nicht fest eingebaut; vor einer Veröffentlichung müsste die Lizenzlage vorher geprüft werden.</p>
+        <small>JSON-Schema: { "teams": [{ "id", "name", "league", "budget" }], "players": [{ "id", "name", "teamId", "position", "strength" }] } · vorbereitet für bis zu 18 Teams pro Liga.</small>
+        ${dataMode.message ? `<strong>${dataMode.message}</strong>` : ''}
+        ${dataImportFeedback ? `<strong>${dataImportFeedback}</strong>` : ''}
+      </div>
+      <div class="data-mode-actions">
+        <label class="import-button">
+          Private JSON importieren
+          <input data-real-import type="file" accept="application/json,.json" />
+        </label>
+        <button data-reset-fantasy type="button">Fantasydaten nutzen</button>
+      </div>
+    </section>
+  `;
 }
 
 function renderStartScreen() {
@@ -70,6 +101,8 @@ function renderStartScreen() {
         </p>
         <a class="primary-button" href="#club-selection">Neues Spiel</a>
       </section>
+
+      ${renderDataModeNotice()}
 
       <section id="club-selection" class="club-selection">
         <div class="section-heading">
@@ -125,6 +158,7 @@ function renderManagerLayout() {
           <h1>${gameState.selectedClub.name}</h1>
         </div>
         <div class="header-meta">
+          <span>${getDataModeSummary().isRealImport ? 'realImport privat' : 'fantasy'}</span>
           <span>Spieltag ${gameState.currentMatchday}</span>
           <strong>Transfer ${formatBudget(gameState.transferBudget)}</strong>
           <span>Gehalt ${formatBudget(gameState.currentWageSum)} / ${formatBudget(gameState.wageBudget)}</span>
@@ -138,6 +172,37 @@ function renderManagerLayout() {
 }
 
 function attachEventHandlers() {
+  rootElement.querySelectorAll('[data-reset-fantasy]').forEach((button) => {
+    button.addEventListener('click', () => {
+      resetToFantasyData();
+      selectedLeague = leagues[0] ?? selectedLeague;
+      dataImportFeedback = 'Fantasiedaten sind wieder aktiv.';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-real-import]').forEach((field) => {
+    field.addEventListener('change', () => {
+      const file = field.files?.[0];
+
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        try {
+          importPrivateRealData(JSON.parse(reader.result));
+          selectedLeague = leagues[0] ?? selectedLeague;
+          dataImportFeedback = 'Import erfolgreich. Die Auswahl wurde auf deine privaten Daten umgestellt.';
+        } catch (error) {
+          dataImportFeedback = `Import fehlgeschlagen: ${error.message}`;
+        }
+
+        renderApp();
+      });
+      reader.readAsText(file);
+    });
+  });
+
   rootElement.querySelectorAll('[data-league]').forEach((button) => {
     button.addEventListener('click', () => {
       selectedLeague = button.dataset.league;
@@ -147,7 +212,7 @@ function attachEventHandlers() {
 
   rootElement.querySelectorAll('[data-club]').forEach((button) => {
     button.addEventListener('click', () => {
-      const club = clubs[selectedLeague].find((entry) => entry.name === button.dataset.club);
+      const club = clubs[selectedLeague]?.find((entry) => entry.name === button.dataset.club);
 
       if (club) {
         startNewGame(club);

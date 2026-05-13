@@ -1,7 +1,7 @@
 import { teams } from '../data/teams.js';
 import { simulateMatch } from './simulation.js';
 
-const cupRoundLabels = ['1. Runde', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'];
+const cupRoundLabels = ['1. Runde', 'Zwischenrunde', 'Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'];
 const prizeByRoundLabel = {
   '1. Runde': 400_000,
   Achtelfinale: 800_000,
@@ -70,7 +70,7 @@ export function createInitialCupState() {
     rounds: [drawRound(participantIds, 0)],
     eliminatedTeamIds: [],
     winnerId: null,
-    nextRoundMatchdays: [3, 8, 13, 18, 23],
+    nextRoundMatchdays: [3, 8, 13, 18, 23, 28],
   };
 }
 

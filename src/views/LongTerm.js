@@ -3,7 +3,9 @@ import { clubUpgradeDefinitions, getUpgradeCost } from '../game/clubUpgrades.js'
 import { teams } from '../data/teams.js';
 import { formatBudget, formatCompactBudget } from '../utils/format.js';
 
-const teamsById = Object.fromEntries(teams.map((team) => [team.id, team]));
+function getTeamsById() {
+  return Object.fromEntries(teams.map((team) => [team.id, team]));
+}
 
 function renderClubUpgrades(state) {
   const rows = Object.entries(clubUpgradeDefinitions)
@@ -48,7 +50,7 @@ function renderCup(state) {
       <article class="longterm-card">
         <div>
           <p class="eyebrow">${cup.winnerId ? 'Entschieden' : 'Nächste Runde'}</p>
-          <h3>${cup.winnerId ? teamsById[cup.winnerId].name : currentRound.label}</h3>
+          <h3>${cup.winnerId ? getTeamsById()[cup.winnerId]?.name : currentRound.label}</h3>
           <p>${cup.activeParticipantIds.length} Teams sind noch dabei. Pokalrunden laufen automatisch nach festgelegten Spieltagen.</p>
         </div>
       </article>
