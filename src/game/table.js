@@ -100,7 +100,7 @@ export function getTableZone(row, league) {
   }
 
   if (row.position === 1) return { key: 'title', label: 'Meisterschaft' };
-  if (row.position <= 4) return { key: 'top', label: 'Topplätze' };
+  if (row.position <= 6) return { key: 'international', label: 'Internationale Plätze' };
   if (row.position === 16) return { key: 'relegation', label: 'Relegation' };
   if (row.position >= 17) return { key: 'demotion', label: 'Abstieg' };
   return { key: 'neutral', label: 'Mittelfeld' };

@@ -2,7 +2,7 @@ import { getTableZone } from '../game/table.js';
 
 const zoneLegend = [
   ['title', 'Meisterschaft'],
-  ['top', 'Topplätze'],
+  ['international', 'Internationale Plätze'],
   ['promotion', 'Aufstieg'],
   ['relegation', 'Relegation'],
   ['demotion', 'Abstieg'],

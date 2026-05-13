@@ -1,4 +1,10 @@
-const SEASON_MATCHDAYS = 34;
+export function getSeasonMatchdayCount(teamCount) {
+  if (teamCount < 2 || teamCount % 2 !== 0) {
+    throw new Error('Der Spielplan benötigt eine gerade Anzahl von mindestens zwei Teams.');
+  }
+
+  return (teamCount - 1) * 2;
+}
 
 function rotateTeams([fixedTeam, ...rotatingTeams]) {
   return [fixedTeam, rotatingTeams.at(-1), ...rotatingTeams.slice(0, -1)];
@@ -30,10 +36,8 @@ function createRoundPairings(teams) {
   return pairings;
 }
 
-export function createSeasonSchedule(teams, matchdayCount = SEASON_MATCHDAYS) {
-  if (teams.length < 2 || teams.length % 2 !== 0) {
-    throw new Error('Der Spielplan benötigt eine gerade Anzahl von mindestens zwei Teams.');
-  }
+export function createSeasonSchedule(teams, matchdayCount = getSeasonMatchdayCount(teams.length)) {
+  getSeasonMatchdayCount(teams.length);
 
   const firstLeg = createRoundPairings(teams);
   const secondLeg = firstLeg.map((matches) =>
