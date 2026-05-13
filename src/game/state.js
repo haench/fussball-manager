@@ -4,6 +4,14 @@ import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
 import { leagues, teamsByLeague } from '../data/teams.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
+import {
+  buyPlayer,
+  calculateCurrentWageSum,
+  createInitialPlayerTeamIds,
+  createInitialTransferFinances,
+  defaultTransferFilters,
+  sellPlayer,
+} from './transfers.js';
 
 export { leagues };
 export const clubs = teamsByLeague;
@@ -13,6 +21,9 @@ export const initialGameState = {
   currentLeague: null,
   currentMatchday: 1,
   budget: 0,
+  transferBudget: 0,
+  wageBudget: 0,
+  currentWageSum: 0,
   squad: [],
   table: [],
   schedule: [],
@@ -22,6 +33,9 @@ export const initialGameState = {
   messages: [],
   tacticsByTeamId: {},
   lineupByTeamId: {},
+  transferFilters: { ...defaultTransferFilters },
+  transferLastResponse: '',
+  playerTeamIds: {},
 };
 
 export const gameState = structuredClone(initialGameState);
@@ -270,21 +284,57 @@ export function updateUserTactics(state = gameState, field, value) {
 }
 
 export function startNewGame(club) {
+  const initialSquad = createInitialSquad(club.id);
+  const initialFinances = createInitialTransferFinances(club, initialSquad);
+
   Object.assign(gameState, {
     selectedClub: club,
     currentLeague: club.league,
     currentMatchday: 1,
-    budget: club.budget,
-    squad: createInitialSquad(club.id),
+    ...initialFinances,
+    squad: initialSquad,
     table: createInitialTable(club.league),
     schedule: createSeasonSchedule(clubs[club.league]),
     completedMatches: [],
     latestMatchdayResults: [],
     liveMatch: null,
     messages: ['Die Saison wurde mit einem 34-Spieltage-Plan angesetzt.'],
+    transferFilters: { ...defaultTransferFilters },
+    transferLastResponse: '',
+    playerTeamIds: createInitialPlayerTeamIds(),
     tacticsByTeamId: { [club.id]: { ...defaultTactics } },
-    lineupByTeamId: { [club.id]: createInitialLineup(createInitialSquad(club.id), defaultFormation) },
+    lineupByTeamId: { [club.id]: createInitialLineup(initialSquad, defaultFormation) },
   });
 
   return gameState;
+}
+
+export function updateTransferFilter(state = gameState, field, value) {
+  if (!Object.hasOwn(defaultTransferFilters, field)) return state.transferFilters;
+
+  state.transferFilters = { ...state.transferFilters, [field]: value };
+  return state.transferFilters;
+}
+
+export function resetTransferFilters(state = gameState) {
+  state.transferFilters = { ...defaultTransferFilters };
+  return state.transferFilters;
+}
+
+export function submitTransferOffer(state = gameState, playerId, offer) {
+  const result = buyPlayer(state, playerId, offer);
+  state.transferLastResponse = result.response;
+  return result;
+}
+
+export function sellSquadPlayer(state = gameState, playerId) {
+  const result = sellPlayer(state, playerId);
+  state.transferLastResponse = result.response;
+
+  if (result.accepted && state.selectedClub) {
+    state.lineupByTeamId[state.selectedClub.id] = buildBestLineup(state.squad, state.lineupByTeamId[state.selectedClub.id]?.formation ?? defaultFormation);
+  }
+
+  state.currentWageSum = calculateCurrentWageSum(state.squad);
+  return result;
 }

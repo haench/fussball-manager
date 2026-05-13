@@ -3,10 +3,14 @@ import {
   clubs,
   gameState,
   leagues,
+  resetTransferFilters,
+  sellSquadPlayer,
   setBestLineup,
   simulateCurrentMatchday,
   simulateRemainingMatches,
+  submitTransferOffer,
   startNewGame,
+  updateTransferFilter,
   updateLineupFormation,
   updateUserTactics,
   watchUserMatchLive,
@@ -113,7 +117,8 @@ function renderManagerLayout() {
         </div>
         <div class="header-meta">
           <span>Spieltag ${gameState.currentMatchday}</span>
-          <strong>${formatBudget(gameState.budget)}</strong>
+          <strong>Transfer ${formatBudget(gameState.transferBudget)}</strong>
+          <span>Gehalt ${formatBudget(gameState.currentWageSum)} / ${formatBudget(gameState.wageBudget)}</span>
         </div>
       </header>
 
@@ -172,6 +177,43 @@ function attachEventHandlers() {
       }
 
       activeView = 'Spieltag';
+      renderApp();
+    });
+  });
+
+
+  rootElement.querySelectorAll('[data-transfer-filter]').forEach((field) => {
+    field.addEventListener('change', () => {
+      updateTransferFilter(gameState, field.dataset.transferFilter, field.value);
+      activeView = 'Transfers';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-transfer-reset]').forEach((button) => {
+    button.addEventListener('click', () => {
+      resetTransferFilters(gameState);
+      activeView = 'Transfers';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-buy-player]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const playerId = button.dataset.buyPlayer;
+      const fee = rootElement.querySelector(`[data-offer-fee="${playerId}"]`)?.value ?? 0;
+      const salary = rootElement.querySelector(`[data-offer-salary="${playerId}"]`)?.value ?? 0;
+
+      submitTransferOffer(gameState, playerId, { fee, salary });
+      activeView = 'Transfers';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-sell-player]').forEach((button) => {
+    button.addEventListener('click', () => {
+      sellSquadPlayer(gameState, button.dataset.sellPlayer);
+      activeView = 'Transfers';
       renderApp();
     });
   });
