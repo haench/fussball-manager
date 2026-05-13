@@ -38,7 +38,7 @@ export function createDevelopmentPlayer(player) {
   };
 }
 
-export function applyMatchMood(squad, match, teamId) {
+export function applyMatchMood(squad, match, teamId, { fatigueReduction = 0 } = {}) {
   if (!match || !teamId) return [];
 
   const goalsFor = match.homeTeamId === teamId ? match.homeGoals : match.awayGoals;
@@ -48,7 +48,8 @@ export function applyMatchMood(squad, match, teamId) {
   const toughGame = goalsFor < goalsAgainst;
 
   squad.forEach((player) => {
-    player.fitness = clampRating((player.fitness ?? 82) - (goodGame ? 4 : 6));
+    const fatigueLoss = (goodGame ? 4 : 6) * (1 - fatigueReduction);
+    player.fitness = clampRating((player.fitness ?? 82) - fatigueLoss);
     player.form = clampRating((player.form ?? 55) + (goodGame ? 7 : toughGame ? -5 : 1));
     player.morale = clampRating((player.morale ?? 60) + (won ? 8 : toughGame ? -6 : 2));
   });
@@ -64,7 +65,7 @@ export function applyMatchMood(squad, match, teamId) {
   return ['Ordentliches Spiel: Die Stimmung bleibt stabil.'];
 }
 
-export function applyMonthlyDevelopment(squad) {
+export function applyMonthlyDevelopment(squad, { trainingGroundBonus = 1 } = {}) {
   const messages = [];
 
   squad.forEach((player) => {
@@ -74,7 +75,7 @@ export function applyMonthlyDevelopment(squad) {
     const ageBonus = player.age <= 20 ? 0.5 : player.age <= 23 ? 0.3 : player.age <= 26 ? 0.12 : -0.12;
     const moodBonus = ((player.form ?? 55) - 50) / 120 + ((player.morale ?? 60) - 50) / 140;
     const fitnessBonus = ((player.fitness ?? 82) - 70) / 180;
-    const growthChance = (potentialGrowth[player.potential] ?? potentialGrowth.mittel) + ageBonus + moodBonus + fitnessBonus;
+    const growthChance = ((potentialGrowth[player.potential] ?? potentialGrowth.mittel) + ageBonus + moodBonus + fitnessBonus) * trainingGroundBonus;
 
     if (growthChance >= 0.9 || (player.age <= 21 && ['hoch', 'riesig'].includes(player.potential) && growthChance >= 0.78)) {
       player.strength = clampRating(player.strength + 1);

@@ -15,6 +15,7 @@ import {
   updateTrainingFocus,
   updateLineupFormation,
   updateUserTactics,
+  upgradeClubFacility,
   watchUserMatchLive,
 } from './game/state.js';
 import { formatBudget } from './utils/format.js';
@@ -25,8 +26,9 @@ import { renderSquad } from './views/Squad.js';
 import { renderTable } from './views/TableView.js';
 import { renderTraining } from './views/Training.js';
 import { renderTransfers } from './views/Transfers.js';
+import { renderLongTerm } from './views/LongTerm.js';
 
-const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers'];
+const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers', 'Verein'];
 
 let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
@@ -96,6 +98,8 @@ function renderActiveView() {
       return renderTable(gameState);
     case 'Transfers':
       return renderTransfers(gameState);
+    case 'Verein':
+      return renderLongTerm(gameState);
     case 'Dashboard':
     default:
       return renderDashboard(gameState);
@@ -235,6 +239,14 @@ function attachEventHandlers() {
     button.addEventListener('click', () => {
       sellSquadPlayer(gameState, button.dataset.sellPlayer);
       activeView = 'Transfers';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-upgrade-club]').forEach((button) => {
+    button.addEventListener('click', () => {
+      upgradeClubFacility(gameState, button.dataset.upgradeClub);
+      activeView = 'Verein';
       renderApp();
     });
   });
