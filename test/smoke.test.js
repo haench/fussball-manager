@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createSeasonSchedule } from '../src/game/schedule.js';
 import { gameState, resetGameProgress, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
 import { getTableZone } from '../src/game/table.js';
+import { renderSquad } from '../src/views/Squad.js';
+import { renderTable } from '../src/views/TableView.js';
 import { fantasyTeams, teamsByLeague, TEAMS_PER_LEAGUE } from '../src/data/teams.js';
 import { players } from '../src/data/players.js';
 import {
@@ -50,6 +52,16 @@ for (const team of fantasyTeams) {
 
 const selectedClub = bundesligaTeams[0];
 startNewGame(selectedClub);
+const squadMarkup = renderSquad(gameState);
+assert.match(squadMarkup, /class="squad-row player-card"/, 'Kaderspieler werden als Karten renderbar markiert.');
+assert.match(squadMarkup, /<details class="player-details">/, 'Detailwerte im Kader sind einklappbar.');
+assert.match(squadMarkup, /Form\/Fitness\/Moral/, 'Die wichtigsten Stimmungswerte bleiben direkt sichtbar.');
+
+const tableMarkup = renderTable(gameState);
+assert.match(tableMarkup, /class="standings-points"/, 'Tabellenpunkte sind für mobile Ranglisten separat adressierbar.');
+assert.match(tableMarkup, /class="standings-goals-for"/, 'Tore sind für mobile Ranglisten separat adressierbar.');
+assert.match(tableMarkup, /class="standings-goals-against"/, 'Gegentore sind für mobile Ranglisten separat adressierbar.');
+
 const watchedMatchday = gameState.schedule.find((matchday) => matchday.matchday === gameState.currentMatchday);
 const watchedUserMatch = watchUserMatchLive(gameState);
 simulateRemainingMatches(gameState);
