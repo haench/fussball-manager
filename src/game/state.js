@@ -8,6 +8,10 @@ import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedul
 import { simulateMatchday } from './simulation.js';
 import { addNewsItems, createInitialNewsItems, generateMatchdayNews } from './news.js';
 import { applyWeeklyTraining, normalizeTrainingFocus, planAutomaticTraining } from './training.js';
+import { evaluateAchievements, createInitialAchievementState } from './achievements.js';
+import { buyClubUpgrade, calculateWeeklyUpgradeIncome, createInitialClubUpgrades, getMedicalFatigueReduction, getTrainingGroundDevelopmentBonus } from './clubUpgrades.js';
+import { createInitialCupState, shouldPlayCupRound, simulateCupRound } from './cup.js';
+import { createInitialYouthState, maybeGenerateYouthPlayer } from './youth.js';
 import {
   buyPlayer,
   calculateCurrentWageSum,
@@ -45,6 +49,14 @@ export const initialGameState = {
   trainingFocus: 'Teamgeist',
   trainingMessages: [],
   developmentMonth: 1,
+  developmentProcessedMatchdays: [],
+  incomeProcessedMatchdays: [],
+  clubUpgrades: createInitialClubUpgrades(),
+  cup: createInitialCupState(),
+  youthState: createInitialYouthState(),
+  youthPlayers: [],
+  achievements: createInitialAchievementState(),
+  feedbackEffects: [],
 };
 
 export const gameState = structuredClone(initialGameState);
@@ -53,8 +65,9 @@ export function createInitialSquad(teamId) {
   return getPlayersByTeamId(teamId);
 }
 
-function createTeamsById(league) {
-  return Object.fromEntries(clubs[league].map((club) => [club.id, club]));
+function createTeamsById(league = null) {
+  const teamList = league ? clubs[league] : Object.values(clubs).flat();
+  return Object.fromEntries(teamList.map((club) => [club.id, club]));
 }
 
 export function recalculateTable(state = gameState) {
@@ -87,10 +100,13 @@ function createFormMap(state) {
 
 
 function advanceMonthlyDevelopment(state, matchdayNumber) {
-  if (matchdayNumber % 4 !== 0) return [];
+  if (matchdayNumber % 4 !== 0 || state.developmentProcessedMatchdays.includes(matchdayNumber)) return [];
 
-  const developmentMessages = applyMonthlyDevelopment(state.squad);
+  const developmentMessages = applyMonthlyDevelopment(state.squad, {
+    trainingGroundBonus: getTrainingGroundDevelopmentBonus(state),
+  });
   state.developmentMonth += 1;
+  state.developmentProcessedMatchdays = [...state.developmentProcessedMatchdays, matchdayNumber];
   return developmentMessages;
 }
 
@@ -106,8 +122,40 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
   const userResult = results.find(
     (match) => match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id,
   );
-  const moodMessages = applyMatchMood(state.squad, userResult, state.selectedClub.id);
+  const moodMessages = applyMatchMood(state.squad, userResult, state.selectedClub.id, {
+    fatigueReduction: getMedicalFatigueReduction(state),
+  });
   const developmentMessages = advanceMonthlyDevelopment(state, matchday.matchday);
+  const youthMessages = maybeGenerateYouthPlayer(state, matchday.matchday);
+  const incomeAlreadyProcessed = state.incomeProcessedMatchdays.includes(matchday.matchday);
+  const income = incomeAlreadyProcessed ? { total: 0 } : calculateWeeklyUpgradeIncome(state, userResult);
+  const incomeMessages = income.total > 0 ? [`Vereinsausbau zahlt sich aus: +${income.total.toLocaleString('de-DE')} € Einnahmen.`] : [];
+  if (!incomeAlreadyProcessed) {
+    state.transferBudget += income.total;
+    state.budget = state.transferBudget;
+    state.incomeProcessedMatchdays = [...state.incomeProcessedMatchdays, matchday.matchday];
+  }
+
+  const cupMessages = [];
+  let cupWinnerId = null;
+  if (shouldPlayCupRound(state.cup, matchday.matchday)) {
+    const cupRound = simulateCupRound({
+      state,
+      teamsById: createTeamsById(),
+      formByTeamId: createFormMap(state),
+      tacticsByTeamId: state.tacticsByTeamId,
+      lineupByTeamId: state.lineupByTeamId,
+      squadByTeamId: createUserSquadMap(state),
+    });
+    cupMessages.push(...cupRound.messages);
+    cupWinnerId = cupRound.winnerId;
+  }
+
+  const achievementMessages = evaluateAchievements(state, {
+    userResult,
+    seasonFinished: matchday.matchday >= state.schedule.length,
+    cupWinnerId,
+  });
 
   recalculateTable(state);
   addNewsItems(state, generateMatchdayNews({ state, matchday, results, userResult }));
@@ -117,7 +165,11 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
     ...results.map((match) => `${match.homeTeam} ${match.homeGoals}:${match.awayGoals} ${match.awayTeam}`),
     ...moodMessages,
     ...developmentMessages,
-  ].slice(0, 8);
+    ...youthMessages,
+    ...incomeMessages,
+    ...cupMessages,
+    ...achievementMessages,
+  ].slice(0, 12);
 
   if (advanceMatchday && state.currentMatchday < state.schedule.length) {
     state.currentMatchday += 1;
@@ -283,6 +335,14 @@ export function startNewGame(club) {
     trainingFocus: 'Teamgeist',
     trainingMessages: ['Wähle einen Fokus oder lass dein Training automatisch planen.'],
     developmentMonth: 1,
+    developmentProcessedMatchdays: [],
+    incomeProcessedMatchdays: [],
+    clubUpgrades: createInitialClubUpgrades(),
+    cup: createInitialCupState(),
+    youthState: createInitialYouthState(),
+    youthPlayers: [],
+    achievements: createInitialAchievementState(),
+    feedbackEffects: [],
     transferFilters: { ...defaultTransferFilters },
     transferLastResponse: '',
     playerTeamIds: createInitialPlayerTeamIds(),
@@ -328,10 +388,25 @@ export function sellSquadPlayer(state = gameState, playerId) {
   const result = sellPlayer(state, playerId);
   state.transferLastResponse = result.response;
 
+  if (result.accepted) {
+    const achievementMessages = evaluateAchievements(state, { salePrice: result.salePrice });
+    state.messages = [...achievementMessages, ...state.messages].slice(0, 12);
+  }
+
   if (result.accepted && state.selectedClub) {
     state.lineupByTeamId[state.selectedClub.id] = buildBestLineup(state.squad, state.lineupByTeamId[state.selectedClub.id]?.formation ?? defaultFormation);
   }
 
   state.currentWageSum = calculateCurrentWageSum(state.squad);
   return result;
+}
+
+export function upgradeClubFacility(state = gameState, upgradeKey) {
+  const result = buyClubUpgrade(state, upgradeKey);
+  state.messages = [result.message, ...state.messages].slice(0, 12);
+  return result;
+}
+
+export function clearFeedbackEffects(state = gameState) {
+  state.feedbackEffects = [];
 }

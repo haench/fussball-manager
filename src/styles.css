@@ -961,3 +961,89 @@ select {
 .news-injury {
   border-left-color: #ff8f1f;
 }
+
+.longterm-view,
+.longterm-section,
+.event-list,
+.achievement-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.longterm-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.longterm-card {
+  align-items: start;
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 20px;
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.longterm-card button:disabled {
+  background: #9aa99a;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.event-list,
+.achievement-list {
+  list-style: none;
+  padding: 0;
+}
+
+.event-list li,
+.achievement-row {
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 16px;
+  padding: 0.9rem 1rem;
+}
+
+.event-list small,
+.achievement-row small {
+  color: #5f735b;
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.achievement-row {
+  align-items: center;
+  display: flex;
+  gap: 0.85rem;
+}
+
+.achievement-row.unlocked {
+  background: #fff8dd;
+  border-color: #ecd98f;
+}
+
+.success-badge,
+.confetti-banner {
+  background: #1f7a3a;
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  font-weight: 800;
+  margin-left: 0.5rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.confetti-banner {
+  animation: confetti-pop 700ms ease both;
+  border-radius: 18px;
+  justify-content: center;
+  margin-left: 0;
+  padding: 1rem;
+}
+
+@keyframes confetti-pop {
+  0% { opacity: 0; transform: scale(0.96) translateY(-8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
