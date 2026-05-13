@@ -230,6 +230,89 @@ h2 {
   justify-content: space-between;
 }
 
+
+.squad-view {
+  display: grid;
+  gap: 1rem;
+}
+
+.friendly-copy,
+.license-note {
+  color: #4f664c;
+  line-height: 1.6;
+  margin-bottom: 0;
+}
+
+.license-note {
+  background: #fff8dd;
+  border: 1px solid #ecd98f;
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+}
+
+.squad-table {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  overflow-x: auto;
+}
+
+.squad-row {
+  align-items: center;
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 16px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(160px, 1.4fr) 0.5fr 0.6fr minmax(240px, 2fr) 0.8fr 0.9fr;
+  min-width: 860px;
+  padding: 1rem;
+}
+
+.squad-header {
+  background: #dbe9d8;
+  color: #263a22;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.player-name {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.player-name small {
+  color: #5f735b;
+}
+
+.position-badge,
+.skill-pill {
+  background: #e8f4e5;
+  border-radius: 999px;
+  color: #1f5f32;
+  display: inline-flex;
+  font-weight: 800;
+  justify-content: center;
+  padding: 0.35rem 0.65rem;
+}
+
+.strength-score {
+  background: #1f7a3a;
+  border-radius: 14px;
+  color: white;
+  font-size: 1.45rem;
+  padding: 0.45rem 0.7rem;
+  text-align: center;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 @media (max-width: 720px) {
   .app-shell {
     padding: 1rem;
@@ -249,5 +332,14 @@ h2 {
   .table-row,
   .standings .table-row {
     grid-template-columns: 1fr;
+  }
+
+  .squad-row {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .squad-header {
+    display: none;
   }
 }
