@@ -1,5 +1,6 @@
 import { getSeasonGoalStatus } from '../game/table.js';
 import { formatBudget } from '../utils/format.js';
+import { renderNewsCenter } from './NewsCenter.js';
 
 function renderGoalStatus(state) {
   const status = getSeasonGoalStatus(state);
@@ -62,8 +63,9 @@ export function renderDashboard(state) {
         <strong>${formatBudget(state.currentWageSum)} / ${formatBudget(state.wageBudget)}</strong>
       </article>
       ${renderGoalStatus(state)}
+      ${renderNewsCenter(state.newsItems)}
       <article class="message-card">
-        <h3>Nachrichten</h3>
+        <h3>Team-Meldungen</h3>
         <ul>${renderMessages(state.messages)}</ul>
       </article>
     </div>
