@@ -62,7 +62,7 @@ export const initialGameState = {
 
 export const gameState = structuredClone(initialGameState);
 
-function resetGameProgress(dataMode = activeDataMode, dataImportMessage = '') {
+export function resetGameProgress(dataMode = activeDataMode, dataImportMessage = '') {
   Object.assign(gameState, structuredClone(initialGameState), {
     dataMode,
     dataImportMessage,
