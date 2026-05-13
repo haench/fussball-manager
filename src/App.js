@@ -20,7 +20,7 @@ import { renderDashboard } from './views/Dashboard.js';
 import { renderLineup } from './views/LineupView.js';
 import { renderMatchday } from './views/Matchday.js';
 import { renderSquad } from './views/Squad.js';
-import { renderTable } from './views/Table.js';
+import { renderTable } from './views/TableView.js';
 import { renderTransfers } from './views/Transfers.js';
 
 const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Spieltag', 'Tabelle', 'Transfers'];

@@ -1,4 +1,31 @@
+import { getSeasonGoalStatus } from '../game/table.js';
 import { formatBudget } from '../utils/format.js';
+
+function renderGoalStatus(state) {
+  const status = getSeasonGoalStatus(state);
+
+  if (!status.goal || !status.currentRow) {
+    return '';
+  }
+
+  const gapText = status.isInTarget
+    ? 'Super! Du bist gerade im Zielbereich.'
+    : `Noch ${status.pointsBehind} ${status.pointsBehind === 1 ? 'Punkt' : 'Punkte'} Rückstand`;
+
+  return `
+    <article class="season-goal-card">
+      <div>
+        <p class="eyebrow">Saisonziel</p>
+        <h3>${status.goal.label}</h3>
+      </div>
+      <div class="goal-progress">
+        <span>Ziel: ${status.goal.targetLabel}</span>
+        <span>Aktuell: Platz ${status.currentPosition}</span>
+        <strong>${gapText}</strong>
+      </div>
+    </article>
+  `;
+}
 
 function renderMessages(messages) {
   if (!messages.length) {
@@ -34,6 +61,7 @@ export function renderDashboard(state) {
         <span>Gehaltsbudget</span>
         <strong>${formatBudget(state.currentWageSum)} / ${formatBudget(state.wageBudget)}</strong>
       </article>
+      ${renderGoalStatus(state)}
       <article class="message-card">
         <h3>Nachrichten</h3>
         <ul>${renderMessages(state.messages)}</ul>

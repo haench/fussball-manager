@@ -2,6 +2,7 @@ import { getPlayersByTeamId } from '../data/players.js';
 import { buildBestLineup, createInitialLineup, defaultFormation, formations } from './lineup.js';
 import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
 import { leagues, teamsByLeague } from '../data/teams.js';
+import { calculateLeagueTable, createInitialTable, createSeasonGoal } from './table.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
 import {
@@ -36,6 +37,7 @@ export const initialGameState = {
   transferFilters: { ...defaultTransferFilters },
   transferLastResponse: '',
   playerTeamIds: {},
+  seasonGoal: null,
 };
 
 export const gameState = structuredClone(initialGameState);
@@ -48,73 +50,8 @@ function createTeamsById(league) {
   return Object.fromEntries(clubs[league].map((club) => [club.id, club]));
 }
 
-function createInitialRows(league) {
-  return clubs[league].map((club) => ({
-    position: 0,
-    club: club.name,
-    teamId: club.id,
-    played: 0,
-    won: 0,
-    drawn: 0,
-    lost: 0,
-    goalsFor: 0,
-    goalsAgainst: 0,
-    goalDifference: 0,
-    points: 0,
-  }));
-}
-
-function sortTable(rows) {
-  return rows
-    .sort(
-      (a, b) =>
-        b.points - a.points ||
-        b.goalDifference - a.goalDifference ||
-        b.goalsFor - a.goalsFor ||
-        a.club.localeCompare(b.club),
-    )
-    .map((row, index) => ({ ...row, position: index + 1 }));
-}
-
-export function createInitialTable(league) {
-  return sortTable(createInitialRows(league));
-}
-
 export function recalculateTable(state = gameState) {
-  const rowsByTeamId = Object.fromEntries(createInitialRows(state.currentLeague).map((row) => [row.teamId, row]));
-
-  state.completedMatches.forEach((match) => {
-    const homeRow = rowsByTeamId[match.homeTeamId];
-    const awayRow = rowsByTeamId[match.awayTeamId];
-
-    homeRow.played += 1;
-    awayRow.played += 1;
-    homeRow.goalsFor += match.homeGoals;
-    homeRow.goalsAgainst += match.awayGoals;
-    awayRow.goalsFor += match.awayGoals;
-    awayRow.goalsAgainst += match.homeGoals;
-
-    if (match.homeGoals > match.awayGoals) {
-      homeRow.won += 1;
-      awayRow.lost += 1;
-      homeRow.points += 3;
-    } else if (match.awayGoals > match.homeGoals) {
-      awayRow.won += 1;
-      homeRow.lost += 1;
-      awayRow.points += 3;
-    } else {
-      homeRow.drawn += 1;
-      awayRow.drawn += 1;
-      homeRow.points += 1;
-      awayRow.points += 1;
-    }
-  });
-
-  Object.values(rowsByTeamId).forEach((row) => {
-    row.goalDifference = row.goalsFor - row.goalsAgainst;
-  });
-
-  state.table = sortTable(Object.values(rowsByTeamId));
+  state.table = calculateLeagueTable(state.currentLeague, state.completedMatches);
   return state.table;
 }
 
@@ -302,6 +239,7 @@ export function startNewGame(club) {
     transferFilters: { ...defaultTransferFilters },
     transferLastResponse: '',
     playerTeamIds: createInitialPlayerTeamIds(),
+    seasonGoal: createSeasonGoal(club),
     tacticsByTeamId: { [club.id]: { ...defaultTactics } },
     lineupByTeamId: { [club.id]: createInitialLineup(initialSquad, defaultFormation) },
   });
