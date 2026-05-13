@@ -27,8 +27,12 @@ export function renderDashboard(state) {
         <strong>${state.currentMatchday}</strong>
       </article>
       <article class="stat-card">
-        <span>Budget</span>
-        <strong>${formatBudget(state.budget)}</strong>
+        <span>Transferbudget</span>
+        <strong>${formatBudget(state.transferBudget)}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Gehaltsbudget</span>
+        <strong>${formatBudget(state.currentWageSum)} / ${formatBudget(state.wageBudget)}</strong>
       </article>
       <article class="message-card">
         <h3>Nachrichten</h3>
