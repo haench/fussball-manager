@@ -22,7 +22,15 @@ import {
   upgradeClubFacility,
   watchUserMatchLive,
 } from './game/state.js';
-import { deleteSavedGame, hasSavedGame, loadSavedGameState, saveGameState } from './game/storage.js';
+import {
+  deleteActiveView,
+  deleteSavedGame,
+  hasSavedGame,
+  loadActiveView,
+  loadSavedGameState,
+  saveActiveView,
+  saveGameState,
+} from './game/storage.js';
 import { formatBudget } from './utils/format.js';
 import { renderDashboard } from './views/Dashboard.js';
 import { renderLineup } from './views/LineupView.js';
@@ -181,13 +189,32 @@ function renderManagerLayout() {
   `;
 }
 
+function renderApp() {
+  rootElement.innerHTML = gameState.selectedClub ? renderManagerLayout() : renderStartScreen();
+  attachEventHandlers();
+}
+
+function commitStateAndRender({ view = activeView } = {}) {
+  activeView = view;
+  saveGameState(gameState);
+  saveActiveView(activeView);
+  renderApp();
+}
+
+function deleteProgressAndRender({ view = 'Dashboard' } = {}) {
+  deleteSavedGame();
+  deleteActiveView();
+  activeView = view;
+  renderApp();
+}
+
 function attachEventHandlers() {
   rootElement.querySelectorAll('[data-reset-fantasy]').forEach((button) => {
     button.addEventListener('click', () => {
       resetToFantasyData();
       selectedLeague = leagues[0] ?? selectedLeague;
       dataImportFeedback = 'Fantasiedaten sind wieder aktiv.';
-      renderApp();
+      deleteProgressAndRender();
     });
   });
 
@@ -199,15 +226,21 @@ function attachEventHandlers() {
 
       const reader = new FileReader();
       reader.addEventListener('load', () => {
+        let progressWasReset = false;
+
         try {
           importPrivateRealData(JSON.parse(reader.result));
           selectedLeague = leagues[0] ?? selectedLeague;
           dataImportFeedback = 'Import erfolgreich. Die Auswahl wurde auf deine privaten Daten umgestellt.';
+          progressWasReset = true;
+          deleteProgressAndRender();
         } catch (error) {
           dataImportFeedback = `Import fehlgeschlagen: ${error.message}`;
         }
 
-        renderApp();
+        if (!progressWasReset) {
+          renderApp();
+        }
       });
       reader.readAsText(file);
     });
@@ -226,8 +259,7 @@ function attachEventHandlers() {
 
       if (club && confirmSaveOverwrite()) {
         startNewGame(club);
-        activeView = 'Dashboard';
-        renderApp();
+        commitStateAndRender({ view: 'Dashboard' });
       }
     });
   });
@@ -240,16 +272,15 @@ function attachEventHandlers() {
         return;
       }
 
-      deleteSavedGame();
       resetGameProgress();
-      activeView = 'Dashboard';
-      renderApp({ persist: false });
+      deleteProgressAndRender();
     });
   });
 
   rootElement.querySelectorAll('[data-view]').forEach((button) => {
     button.addEventListener('click', () => {
       activeView = button.dataset.view;
+      saveActiveView(activeView);
       renderApp();
     });
   });
@@ -280,30 +311,25 @@ function attachEventHandlers() {
 
       if (button.dataset.action === 'best-eleven') {
         setBestLineup(gameState);
-        activeView = 'Aufstellung';
-        renderApp();
+        commitStateAndRender({ view: 'Aufstellung' });
         return;
       }
 
-      activeView = 'Spieltag';
-      renderApp();
+      commitStateAndRender({ view: 'Spieltag' });
     });
   });
-
 
   rootElement.querySelectorAll('[data-training-focus]').forEach((field) => {
     field.addEventListener('change', () => {
       updateTrainingFocus(gameState, field.value);
-      activeView = 'Training';
-      renderApp();
+      commitStateAndRender({ view: 'Training' });
     });
   });
 
   rootElement.querySelectorAll('[data-training-auto]').forEach((button) => {
     button.addEventListener('click', () => {
       autoPlanTraining(gameState);
-      activeView = 'Training';
-      renderApp();
+      commitStateAndRender({ view: 'Training' });
     });
   });
 
@@ -311,6 +337,7 @@ function attachEventHandlers() {
     field.addEventListener('change', () => {
       updateTransferFilter(gameState, field.dataset.transferFilter, field.value);
       activeView = 'Transfers';
+      saveActiveView(activeView);
       renderApp();
     });
   });
@@ -319,6 +346,7 @@ function attachEventHandlers() {
     button.addEventListener('click', () => {
       resetTransferFilters(gameState);
       activeView = 'Transfers';
+      saveActiveView(activeView);
       renderApp();
     });
   });
@@ -330,63 +358,54 @@ function attachEventHandlers() {
       const salary = rootElement.querySelector(`[data-offer-salary="${playerId}"]`)?.value ?? 0;
 
       submitTransferOffer(gameState, playerId, { fee, salary });
-      activeView = 'Transfers';
-      renderApp();
+      commitStateAndRender({ view: 'Transfers' });
     });
   });
 
   rootElement.querySelectorAll('[data-sell-player]').forEach((button) => {
     button.addEventListener('click', () => {
       sellSquadPlayer(gameState, button.dataset.sellPlayer);
-      activeView = 'Transfers';
-      renderApp();
+      commitStateAndRender({ view: 'Transfers' });
     });
   });
 
   rootElement.querySelectorAll('[data-upgrade-club]').forEach((button) => {
     button.addEventListener('click', () => {
       upgradeClubFacility(gameState, button.dataset.upgradeClub);
-      activeView = 'Verein';
-      renderApp();
+      commitStateAndRender({ view: 'Verein' });
     });
   });
 
   rootElement.querySelectorAll('[data-lineup-formation]').forEach((select) => {
     select.addEventListener('change', () => {
       updateLineupFormation(gameState, select.value);
-      activeView = 'Aufstellung';
-      renderApp();
+      commitStateAndRender({ view: 'Aufstellung' });
     });
   });
 
   rootElement.querySelectorAll('[data-lineup-position]').forEach((select) => {
     select.addEventListener('change', () => {
       assignLineupPlayer(gameState, select.dataset.lineupPosition, select.value);
-      activeView = 'Aufstellung';
-      renderApp();
+      commitStateAndRender({ view: 'Aufstellung' });
     });
   });
 
   rootElement.querySelectorAll('[data-tactic-field]').forEach((select) => {
     select.addEventListener('change', () => {
       updateUserTactics(gameState, select.dataset.tacticField, select.value);
-      activeView = 'Aufstellung';
-      renderApp();
+      commitStateAndRender({ view: 'Aufstellung' });
     });
   });
 }
 
-function renderApp({ persist = true } = {}) {
-  if (persist) {
-    saveGameState(gameState);
-  }
-
-  rootElement.innerHTML = gameState.selectedClub ? renderManagerLayout() : renderStartScreen();
-  attachEventHandlers();
-}
-
 export function mountApp(element) {
   rootElement = element;
-  loadSavedGameState();
-  renderApp({ persist: false });
+  const restoredState = loadSavedGameState();
+
+  if (restoredState) {
+    const restoredView = loadActiveView();
+    activeView = navigationItems.includes(restoredView) ? restoredView : activeView;
+  }
+
+  renderApp();
 }

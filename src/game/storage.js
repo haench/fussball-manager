@@ -2,6 +2,7 @@ import { gameState, initialGameState } from './state.js';
 
 export const SAVE_VERSION = 1;
 export const SAVE_STORAGE_KEY = 'fussball-manager:save';
+export const ACTIVE_VIEW_STORAGE_KEY = 'fussball-manager:active-view';
 
 function getLocalStorage() {
   try {
@@ -93,5 +94,31 @@ export function deleteSavedGame() {
   }
 
   storage.removeItem(SAVE_STORAGE_KEY);
+  return true;
+}
+
+export function saveActiveView(view) {
+  const storage = getLocalStorage();
+
+  if (!storage || !view) {
+    return false;
+  }
+
+  storage.setItem(ACTIVE_VIEW_STORAGE_KEY, view);
+  return true;
+}
+
+export function loadActiveView() {
+  return getLocalStorage()?.getItem(ACTIVE_VIEW_STORAGE_KEY) ?? null;
+}
+
+export function deleteActiveView() {
+  const storage = getLocalStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  storage.removeItem(ACTIVE_VIEW_STORAGE_KEY);
   return true;
 }

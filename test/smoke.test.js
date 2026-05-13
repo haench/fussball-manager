@@ -8,11 +8,15 @@ import { renderTable } from '../src/views/TableView.js';
 import { fantasyTeams, teamsByLeague, TEAMS_PER_LEAGUE } from '../src/data/teams.js';
 import { players } from '../src/data/players.js';
 import {
+  ACTIVE_VIEW_STORAGE_KEY,
+  deleteActiveView,
   deleteSavedGame,
   hasSavedGame,
+  loadActiveView,
   loadSavedGameState,
   SAVE_STORAGE_KEY,
   SAVE_VERSION,
+  saveActiveView,
   saveGameState,
 } from '../src/game/storage.js';
 
@@ -92,6 +96,13 @@ const rawSave = JSON.parse(globalThis.localStorage.getItem(SAVE_STORAGE_KEY));
 assert.equal(rawSave.saveVersion, SAVE_VERSION, 'LocalStorage-Save nutzt die aktuelle Save-Version.');
 assert.equal(rawSave.gameState.selectedClub.id, selectedClub.id, 'LocalStorage-Save serialisiert den aktuellen Verein.');
 assert.equal(hasSavedGame(), true, 'Ein gespeicherter Spielstand wird erkannt.');
+saveActiveView('Training');
+assert.equal(
+  globalThis.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY),
+  'Training',
+  'Die aktive Ansicht wird getrennt vom Spielstand gespeichert.',
+);
+assert.equal(loadActiveView(), 'Training', 'Die aktive Ansicht wird getrennt vom Spielstand geladen.');
 
 resetGameProgress();
 assert.equal(gameState.selectedClub, null, 'Reset entfernt den aktiven Verein vor dem Lade-Test.');
@@ -101,3 +112,6 @@ assert.equal(gameState.currentMatchday, rawSave.gameState.currentMatchday, 'Gesp
 
 deleteSavedGame();
 assert.equal(hasSavedGame(), false, 'Spielstand löschen entfernt den LocalStorage-Eintrag.');
+assert.equal(loadActiveView(), 'Training', 'Das Löschen des Spielstands entfernt die separat gespeicherte Ansicht nicht automatisch.');
+deleteActiveView();
+assert.equal(loadActiveView(), null, 'Die separat gespeicherte Ansicht kann gezielt gelöscht werden.');
