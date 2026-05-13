@@ -777,6 +777,13 @@ select {
   background: #ffe7e9;
 }
 
+.zone-demo,
+.zone-demo.zone-pill {
+  border-color: #8d8d8d;
+  border-left-color: #8d8d8d;
+  background: #f4f4f4;
+}
+
 .user-club-row {
   box-shadow: 0 10px 30px rgba(31, 122, 58, 0.18);
   outline: 3px solid rgba(31, 122, 58, 0.2);

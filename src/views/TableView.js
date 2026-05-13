@@ -6,6 +6,7 @@ const zoneLegend = [
   ['promotion', 'Aufstieg'],
   ['relegation', 'Relegation'],
   ['demotion', 'Abstieg'],
+  ['demo', 'Demo-Liga'],
 ];
 
 function formatGoalDifference(value) {
@@ -13,7 +14,7 @@ function formatGoalDifference(value) {
 }
 
 function renderLegend(state) {
-  const visibleZones = new Set(state.table.map((row) => getTableZone(row, state.currentLeague).key));
+  const visibleZones = new Set(state.table.map((row) => getTableZone(row, state.currentLeague, state.table.length).key));
 
   return zoneLegend
     .filter(([key]) => visibleZones.has(key))
@@ -24,7 +25,7 @@ function renderLegend(state) {
 export function renderTable(state) {
   const rows = state.table
     .map((row) => {
-      const zone = getTableZone(row, state.currentLeague);
+      const zone = getTableZone(row, state.currentLeague, state.table.length);
       const isUserClub = row.teamId === state.selectedClub.id;
 
       return `

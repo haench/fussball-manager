@@ -89,20 +89,35 @@ export function createInitialTable(leagueOrTeams) {
   return calculateLeagueTable(leagueOrTeams, []);
 }
 
-export function getTableZone(row, league) {
+const STANDARD_LEAGUE_SIZE = 18;
+
+function getTableTeamCount(row, league, teamCount) {
+  if (Number.isInteger(teamCount) && teamCount > 0) return teamCount;
+  if (Number.isInteger(row?.teamCount) && row.teamCount > 0) return row.teamCount;
+  if (Array.isArray(league)) return league.length;
+  return teamsByLeague[league]?.length ?? STANDARD_LEAGUE_SIZE;
+}
+
+export function getTableZone(row, league, teamCount) {
   if (!row) return { key: 'neutral', label: 'Mittelfeld' };
+
+  const tableTeamCount = getTableTeamCount(row, league, teamCount);
+
+  if (tableTeamCount < STANDARD_LEAGUE_SIZE) {
+    return { key: 'demo', label: 'Demo-Liga' };
+  }
 
   if (league === '2. Bundesliga') {
     if (row.position <= 2) return { key: 'promotion', label: 'Aufstieg' };
     if (row.position === 3) return { key: 'relegation', label: 'Relegation' };
-    if (row.position >= 16) return { key: 'demotion', label: 'Abstieg' };
+    if (row.position >= tableTeamCount - 1) return { key: 'demotion', label: 'Abstieg' };
     return { key: 'neutral', label: 'Mittelfeld' };
   }
 
   if (row.position === 1) return { key: 'title', label: 'Meisterschaft' };
-  if (row.position <= 6) return { key: 'international', label: 'Internationale Plätze' };
-  if (row.position === 16) return { key: 'relegation', label: 'Relegation' };
-  if (row.position >= 17) return { key: 'demotion', label: 'Abstieg' };
+  if (row.position >= 2 && row.position <= 4) return { key: 'international', label: 'Internationale Plätze' };
+  if (row.position === tableTeamCount - 2) return { key: 'relegation', label: 'Relegation' };
+  if (row.position >= tableTeamCount - 1) return { key: 'demotion', label: 'Abstieg' };
   return { key: 'neutral', label: 'Mittelfeld' };
 }
 
