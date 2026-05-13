@@ -22,12 +22,15 @@ assert.ok(
 );
 
 assert.deepEqual(getTableZone({ position: 1 }, 'Bundesliga'), { key: 'title', label: 'Meisterschaft' });
-assert.deepEqual(getTableZone({ position: 6 }, 'Bundesliga'), { key: 'international', label: 'Internationale Plätze' });
+assert.deepEqual(getTableZone({ position: 4 }, 'Bundesliga'), { key: 'international', label: 'Internationale Plätze' });
+assert.deepEqual(getTableZone({ position: 5 }, 'Bundesliga'), { key: 'neutral', label: 'Mittelfeld' });
 assert.deepEqual(getTableZone({ position: 16 }, 'Bundesliga'), { key: 'relegation', label: 'Relegation' });
 assert.deepEqual(getTableZone({ position: 17 }, 'Bundesliga'), { key: 'demotion', label: 'Abstieg' });
 assert.deepEqual(getTableZone({ position: 2 }, '2. Bundesliga'), { key: 'promotion', label: 'Aufstieg' });
 assert.deepEqual(getTableZone({ position: 3 }, '2. Bundesliga'), { key: 'relegation', label: 'Relegation' });
-assert.deepEqual(getTableZone({ position: 16 }, '2. Bundesliga'), { key: 'demotion', label: 'Abstieg' });
+assert.deepEqual(getTableZone({ position: 16 }, '2. Bundesliga'), { key: 'neutral', label: 'Mittelfeld' });
+assert.deepEqual(getTableZone({ position: 17 }, '2. Bundesliga'), { key: 'demotion', label: 'Abstieg' });
+assert.deepEqual(getTableZone({ position: 1 }, 'Bundesliga', 8), { key: 'demo', label: 'Demo-Liga' });
 
 for (const team of fantasyTeams) {
   assert.equal(
