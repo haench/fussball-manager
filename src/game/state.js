@@ -1,10 +1,12 @@
 import { getPlayersByTeamId } from '../data/players.js';
+import { applyMatchMood, applyMonthlyDevelopment } from './development.js';
 import { buildBestLineup, createInitialLineup, defaultFormation, formations } from './lineup.js';
 import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
 import { leagues, teamsByLeague } from '../data/teams.js';
 import { calculateLeagueTable, createInitialTable, createSeasonGoal } from './table.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
+import { applyWeeklyTraining, normalizeTrainingFocus, planAutomaticTraining } from './training.js';
 import {
   buyPlayer,
   calculateCurrentWageSum,
@@ -38,6 +40,9 @@ export const initialGameState = {
   transferLastResponse: '',
   playerTeamIds: {},
   seasonGoal: null,
+  trainingFocus: 'Teamgeist',
+  trainingMessages: [],
+  developmentMonth: 1,
 };
 
 export const gameState = structuredClone(initialGameState);
@@ -70,8 +75,21 @@ function getTeamForm(state, teamId) {
   }, 0);
 }
 
+function createUserSquadMap(state) {
+  return state.selectedClub ? { [state.selectedClub.id]: state.squad } : {};
+}
+
 function createFormMap(state) {
   return Object.fromEntries(clubs[state.currentLeague].map((club) => [club.id, getTeamForm(state, club.id)]));
+}
+
+
+function advanceMonthlyDevelopment(state, matchdayNumber) {
+  if (matchdayNumber % 4 !== 0) return [];
+
+  const developmentMessages = applyMonthlyDevelopment(state.squad);
+  state.developmentMonth += 1;
+  return developmentMessages;
 }
 
 function storeMatchdayResults(state, matchday, results, { advanceMatchday = true } = {}) {
@@ -83,10 +101,18 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
   state.liveMatch = results.find(
     (match) => match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id,
   ) ?? results[0] ?? null;
+  const userResult = results.find(
+    (match) => match.homeTeamId === state.selectedClub.id || match.awayTeamId === state.selectedClub.id,
+  );
+  const moodMessages = applyMatchMood(state.squad, userResult, state.selectedClub.id);
+  const developmentMessages = advanceMonthlyDevelopment(state, matchday.matchday);
+
   state.messages = [
     `Spieltag ${matchday.matchday} abgeschlossen: ${results.length} Partien wurden simuliert.`,
     ...results.map((match) => `${match.homeTeam} ${match.homeGoals}:${match.awayGoals} ${match.awayTeam}`),
-  ].slice(0, 6);
+    ...moodMessages,
+    ...developmentMessages,
+  ].slice(0, 8);
   recalculateTable(state);
 
   if (advanceMatchday && state.currentMatchday < state.schedule.length) {
@@ -103,12 +129,15 @@ export function simulateCurrentMatchday(state = gameState) {
     return [];
   }
 
+  state.trainingMessages = [applyWeeklyTraining(state.squad, state.trainingFocus)];
+
   const results = simulateMatchday({
     matchday,
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
     lineupByTeamId: state.lineupByTeamId,
+    squadByTeamId: createUserSquadMap(state),
   });
 
   return storeMatchdayResults(state, matchday, results);
@@ -122,16 +151,23 @@ export function watchUserMatchLive(state = gameState) {
     return null;
   }
 
+  state.trainingMessages = [applyWeeklyTraining(state.squad, state.trainingFocus)];
+
   const result = simulateMatchday({
     matchday: { matches: [fixture] },
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
     lineupByTeamId: state.lineupByTeamId,
+    squadByTeamId: createUserSquadMap(state),
   })[0];
 
   storeMatchdayResults(state, getMatchday(state.schedule, state.currentMatchday), [result], { advanceMatchday: false });
-  state.messages = [`Live-Spiel abgeschlossen: ${result.homeTeam} ${result.homeGoals}:${result.awayGoals} ${result.awayTeam}.`, result.summary];
+  state.messages = [
+    `Live-Spiel abgeschlossen: ${result.homeTeam} ${result.homeGoals}:${result.awayGoals} ${result.awayTeam}.`,
+    result.summary,
+    ...state.messages.slice(1),
+  ].slice(0, 8);
   return result;
 }
 
@@ -149,12 +185,15 @@ export function simulateRemainingMatches(state = gameState) {
     return [];
   }
 
+  state.trainingMessages = [applyWeeklyTraining(state.squad, state.trainingFocus)];
+
   const results = simulateMatchday({
     matchday: { ...matchday, matches: remainingMatches },
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
     lineupByTeamId: state.lineupByTeamId,
+    squadByTeamId: createUserSquadMap(state),
   });
 
   return storeMatchdayResults(state, matchday, results);
@@ -236,6 +275,9 @@ export function startNewGame(club) {
     latestMatchdayResults: [],
     liveMatch: null,
     messages: ['Die Saison wurde mit einem 34-Spieltage-Plan angesetzt.'],
+    trainingFocus: 'Teamgeist',
+    trainingMessages: ['Wähle einen Fokus oder lass dein Training automatisch planen.'],
+    developmentMonth: 1,
     transferFilters: { ...defaultTransferFilters },
     transferLastResponse: '',
     playerTeamIds: createInitialPlayerTeamIds(),
@@ -245,6 +287,18 @@ export function startNewGame(club) {
   });
 
   return gameState;
+}
+
+export function updateTrainingFocus(state = gameState, focus) {
+  state.trainingFocus = normalizeTrainingFocus(focus);
+  state.trainingMessages = [`Trainingsfokus gesetzt: ${state.trainingFocus}.`];
+  return state.trainingFocus;
+}
+
+export function autoPlanTraining(state = gameState) {
+  state.trainingFocus = planAutomaticTraining(state);
+  state.trainingMessages = [`Training automatisch geplant: ${state.trainingFocus}.`];
+  return state.trainingFocus;
 }
 
 export function updateTransferFilter(state = gameState, field, value) {

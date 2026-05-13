@@ -1,3 +1,5 @@
+import { createDevelopmentPlayer, getPotentialLabel } from '../game/development.js';
+
 export const supportedPositions = ['TW', 'IV', 'AV', 'DM', 'ZM', 'OM', 'Flügel', 'ST'];
 
 const rosterBlueprint = [
@@ -60,11 +62,16 @@ export const players = Object.entries(teamSeeds).flatMap(([teamId, seed], teamIn
       age: blueprint.age + (teamIndex % 4) - 1,
       marketValue: roundToNearest((strength ** 2) * 1_250 * seed.valueBoost, 50_000),
       salary: roundToNearest(strength * 1_850 * seed.salaryBoost, 1_000),
-      potential,
+      potential: getPotentialLabel(potential, strength),
+      potentialRating: potential,
+      form: 55 + (playerIndex % 5),
+      fitness: 82 - (playerIndex % 4),
+      morale: 60 + (playerIndex % 6),
     };
   }),
 );
 
 export function getPlayersByTeamId(teamId) {
-  return players.filter((player) => player.teamId === teamId);
+  return players.filter((player) => player.teamId === teamId).map(createDevelopmentPlayer);
 }
+
