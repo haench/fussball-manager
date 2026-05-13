@@ -232,7 +232,17 @@ function attachEventHandlers() {
   rootElement.querySelectorAll('[data-action]').forEach((button) => {
     button.addEventListener('click', () => {
       if (button.dataset.action === 'simulate-matchday') {
-        simulateCurrentMatchday(gameState);
+        const watchedUserMatch = gameState.liveMatch
+          && gameState.liveMatch.matchday === gameState.currentMatchday
+          && gameState.completedMatches.some((match) => match.id === gameState.liveMatch.id)
+          && (gameState.liveMatch.homeTeamId === gameState.selectedClub?.id
+            || gameState.liveMatch.awayTeamId === gameState.selectedClub?.id);
+
+        if (watchedUserMatch) {
+          simulateRemainingMatches(gameState);
+        } else {
+          simulateCurrentMatchday(gameState);
+        }
       }
 
       if (button.dataset.action === 'watch-live') {

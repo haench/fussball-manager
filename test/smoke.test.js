@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { createSeasonSchedule } from '../src/game/schedule.js';
+import { gameState, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
 import { getTableZone } from '../src/game/table.js';
 import { fantasyTeams, teamsByLeague, TEAMS_PER_LEAGUE } from '../src/data/teams.js';
 import { players } from '../src/data/players.js';
@@ -35,3 +36,16 @@ for (const team of fantasyTeams) {
     `${team.name} hat einen Kader mit 18 Spielern.`,
   );
 }
+
+const selectedClub = bundesligaTeams[0];
+startNewGame(selectedClub);
+const watchedMatchday = gameState.schedule.find((matchday) => matchday.matchday === gameState.currentMatchday);
+const watchedUserMatch = watchUserMatchLive(gameState);
+simulateRemainingMatches(gameState);
+
+assert.equal(gameState.liveMatch?.id, watchedUserMatch.id, 'Das Live-Spiel bleibt nach der Restsimulation die eigene Partie.');
+assert.equal(
+  gameState.latestMatchdayResults.length,
+  watchedMatchday.matches.length,
+  'Nach der Restsimulation enthält latestMatchdayResults den vollständigen Spieltag.',
+);
