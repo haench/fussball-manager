@@ -6,6 +6,7 @@ import { leagues, teamsByLeague } from '../data/teams.js';
 import { calculateLeagueTable, createInitialTable, createSeasonGoal } from './table.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
+import { addNewsItems, createInitialNewsItems, generateMatchdayNews } from './news.js';
 import { applyWeeklyTraining, normalizeTrainingFocus, planAutomaticTraining } from './training.js';
 import {
   buyPlayer,
@@ -34,6 +35,7 @@ export const initialGameState = {
   latestMatchdayResults: [],
   liveMatch: null,
   messages: [],
+  newsItems: [],
   tacticsByTeamId: {},
   lineupByTeamId: {},
   transferFilters: { ...defaultTransferFilters },
@@ -107,13 +109,15 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
   const moodMessages = applyMatchMood(state.squad, userResult, state.selectedClub.id);
   const developmentMessages = advanceMonthlyDevelopment(state, matchday.matchday);
 
+  recalculateTable(state);
+  addNewsItems(state, generateMatchdayNews({ state, matchday, results, userResult }));
+
   state.messages = [
     `Spieltag ${matchday.matchday} abgeschlossen: ${results.length} Partien wurden simuliert.`,
     ...results.map((match) => `${match.homeTeam} ${match.homeGoals}:${match.awayGoals} ${match.awayTeam}`),
     ...moodMessages,
     ...developmentMessages,
   ].slice(0, 8);
-  recalculateTable(state);
 
   if (advanceMatchday && state.currentMatchday < state.schedule.length) {
     state.currentMatchday += 1;
@@ -275,6 +279,7 @@ export function startNewGame(club) {
     latestMatchdayResults: [],
     liveMatch: null,
     messages: ['Die Saison wurde mit einem 34-Spieltage-Plan angesetzt.'],
+    newsItems: createInitialNewsItems(club.name),
     trainingFocus: 'Teamgeist',
     trainingMessages: ['Wähle einen Fokus oder lass dein Training automatisch planen.'],
     developmentMonth: 1,
