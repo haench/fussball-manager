@@ -1,0 +1,253 @@
+:root {
+  color: #172312;
+  background: #eef6ec;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+.primary-button {
+  border: 0;
+  border-radius: 999px;
+  background: #1f7a3a;
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.85rem 1.25rem;
+  text-decoration: none;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+button:hover,
+.primary-button:hover {
+  background: #155a2a;
+  transform: translateY(-1px);
+}
+
+.app-shell {
+  margin: 0 auto;
+  max-width: 1120px;
+  padding: 2rem;
+}
+
+.start-screen {
+  display: grid;
+  gap: 2rem;
+}
+
+.hero-card,
+.club-selection,
+.content-card,
+.manager-header {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(31, 122, 58, 0.14);
+  border-radius: 28px;
+  box-shadow: 0 18px 60px rgba(18, 58, 27, 0.12);
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.hero-card {
+  align-items: start;
+  background: linear-gradient(135deg, #ffffff 0%, #dff1dc 100%);
+  display: grid;
+  gap: 1rem;
+  min-height: 380px;
+  place-content: center start;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  font-size: clamp(3rem, 8vw, 6rem);
+  line-height: 0.95;
+  margin-bottom: 0.5rem;
+}
+
+h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  color: #1f7a3a;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.section-heading {
+  margin-bottom: 1.5rem;
+}
+
+.league-tabs,
+.main-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.league-tabs button,
+.main-nav button {
+  background: #dbe9d8;
+  color: #172312;
+}
+
+.league-tabs button.active,
+.main-nav button.active {
+  background: #1f7a3a;
+  color: white;
+}
+
+.club-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.club-card,
+.stat-card,
+.fixture-card,
+.transfer-list article {
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 20px;
+  padding: 1.25rem;
+}
+
+.club-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.club-card span,
+.header-meta span,
+.stat-card span {
+  color: #5f735b;
+}
+
+.manager-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.manager-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.manager-header h1 {
+  font-size: clamp(2rem, 5vw, 4rem);
+}
+
+.header-meta {
+  display: grid;
+  gap: 0.35rem;
+  text-align: right;
+}
+
+.view-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.view-grid article:first-child {
+  grid-column: 1 / -1;
+}
+
+.stat-card {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.stat-card strong {
+  font-size: 1.4rem;
+}
+
+.table-like,
+.transfer-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.table-row {
+  align-items: center;
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 16px;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  padding: 1rem;
+}
+
+.standings .table-row {
+  grid-template-columns: 1.6fr 0.8fr 0.8fr 0.8fr;
+}
+
+.pitch {
+  background: linear-gradient(135deg, #2f8f48, #17652d);
+  border-radius: 24px;
+  color: white;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  min-height: 320px;
+  padding: 1.5rem;
+  place-items: center;
+}
+
+.fixture-card {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.transfer-list article {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: 1rem;
+  }
+
+  .manager-header,
+  .fixture-card,
+  .transfer-list article {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .header-meta {
+    text-align: left;
+  }
+
+  .table-row,
+  .standings .table-row {
+    grid-template-columns: 1fr;
+  }
+}
