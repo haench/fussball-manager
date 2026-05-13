@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "python3 -m http.server 5173",
-    "check": "node --check src/main.js && node --check src/App.js && node --check src/game/state.js && node --check src/utils/format.js && node --check src/views/Dashboard.js && node --check src/views/Squad.js && node --check src/views/Lineup.js && node --check src/views/Matchday.js && node --check src/views/Table.js && node --check src/views/Transfers.js"
+    "check": "node --check src/main.js && node --check src/App.js && node --check src/data/teams.js && node --check src/data/players.js && node --check src/game/state.js && node --check src/utils/format.js && node --check src/views/Dashboard.js && node --check src/views/Squad.js && node --check src/views/Lineup.js && node --check src/views/Matchday.js && node --check src/views/Table.js && node --check src/views/Transfers.js"
   }
 }
