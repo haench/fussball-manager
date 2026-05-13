@@ -5,6 +5,7 @@ import {
   leagues,
   getDataModeSummary,
   importPrivateRealData,
+  resetGameProgress,
   resetToFantasyData,
   resetTransferFilters,
   sellSquadPlayer,
@@ -21,6 +22,7 @@ import {
   upgradeClubFacility,
   watchUserMatchLive,
 } from './game/state.js';
+import { deleteSavedGame, hasSavedGame, loadSavedGameState, saveGameState } from './game/storage.js';
 import { formatBudget } from './utils/format.js';
 import { renderDashboard } from './views/Dashboard.js';
 import { renderLineup } from './views/LineupView.js';
@@ -37,6 +39,14 @@ let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
 let rootElement;
 let dataImportFeedback = '';
+
+function confirmSaveOverwrite() {
+  if (!hasSavedGame()) {
+    return true;
+  }
+
+  return window.confirm('Es gibt bereits einen gespeicherten Spielstand. Soll er mit einem neuen Spiel überschrieben werden?');
+}
 
 function renderClubCards() {
   const leagueClubs = clubs[selectedLeague] ?? [];
@@ -214,11 +224,26 @@ function attachEventHandlers() {
     button.addEventListener('click', () => {
       const club = clubs[selectedLeague]?.find((entry) => entry.name === button.dataset.club);
 
-      if (club) {
+      if (club && confirmSaveOverwrite()) {
         startNewGame(club);
         activeView = 'Dashboard';
         renderApp();
       }
+    });
+  });
+
+  rootElement.querySelectorAll('[data-delete-save]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const shouldDelete = window.confirm('Soll der gespeicherte Spielstand wirklich gelöscht werden? Das aktuelle Spiel wird beendet.');
+
+      if (!shouldDelete) {
+        return;
+      }
+
+      deleteSavedGame();
+      resetGameProgress();
+      activeView = 'Dashboard';
+      renderApp({ persist: false });
     });
   });
 
@@ -351,12 +376,17 @@ function attachEventHandlers() {
   });
 }
 
-function renderApp() {
+function renderApp({ persist = true } = {}) {
+  if (persist) {
+    saveGameState(gameState);
+  }
+
   rootElement.innerHTML = gameState.selectedClub ? renderManagerLayout() : renderStartScreen();
   attachEventHandlers();
 }
 
 export function mountApp(element) {
   rootElement = element;
-  renderApp();
+  loadSavedGameState();
+  renderApp({ persist: false });
 }

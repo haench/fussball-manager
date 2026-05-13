@@ -34,6 +34,15 @@ button:hover,
   transform: translateY(-1px);
 }
 
+.danger-button {
+  background: #b3261e;
+  margin-top: 0.75rem;
+}
+
+.danger-button:hover {
+  background: #7f1d1d;
+}
+
 .app-shell {
   margin: 0 auto;
   max-width: 1120px;

@@ -45,6 +45,7 @@ export function renderDashboard(state) {
         <p>
           Willkommen bei ${state.selectedClub.name}. Plane die nächsten Schritte und behalte Kader, Budget und Tabelle im Blick.
         </p>
+        <button class="danger-button" data-delete-save type="button">Spielstand löschen</button>
       </article>
       <article class="stat-card">
         <span>Aktuelle Liga</span>

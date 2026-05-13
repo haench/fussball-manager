@@ -1,10 +1,18 @@
 import assert from 'node:assert/strict';
 
 import { createSeasonSchedule } from '../src/game/schedule.js';
-import { gameState, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
+import { gameState, resetGameProgress, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
 import { getTableZone } from '../src/game/table.js';
 import { fantasyTeams, teamsByLeague, TEAMS_PER_LEAGUE } from '../src/data/teams.js';
 import { players } from '../src/data/players.js';
+import {
+  deleteSavedGame,
+  hasSavedGame,
+  loadSavedGameState,
+  SAVE_STORAGE_KEY,
+  SAVE_VERSION,
+  saveGameState,
+} from '../src/game/storage.js';
 
 const bundesligaTeams = teamsByLeague.Bundesliga;
 const secondBundesligaTeams = teamsByLeague['2. Bundesliga'];
@@ -52,3 +60,32 @@ assert.equal(
   watchedMatchday.matches.length,
   'Nach der Restsimulation enthält latestMatchdayResults den vollständigen Spieltag.',
 );
+
+
+const storage = new Map();
+globalThis.localStorage = {
+  getItem(key) {
+    return storage.has(key) ? storage.get(key) : null;
+  },
+  setItem(key, value) {
+    storage.set(key, String(value));
+  },
+  removeItem(key) {
+    storage.delete(key);
+  },
+};
+
+saveGameState(gameState);
+const rawSave = JSON.parse(globalThis.localStorage.getItem(SAVE_STORAGE_KEY));
+assert.equal(rawSave.saveVersion, SAVE_VERSION, 'LocalStorage-Save nutzt die aktuelle Save-Version.');
+assert.equal(rawSave.gameState.selectedClub.id, selectedClub.id, 'LocalStorage-Save serialisiert den aktuellen Verein.');
+assert.equal(hasSavedGame(), true, 'Ein gespeicherter Spielstand wird erkannt.');
+
+resetGameProgress();
+assert.equal(gameState.selectedClub, null, 'Reset entfernt den aktiven Verein vor dem Lade-Test.');
+loadSavedGameState();
+assert.equal(gameState.selectedClub.id, selectedClub.id, 'Gespeicherter Spielstand wird beim Laden wiederhergestellt.');
+assert.equal(gameState.currentMatchday, rawSave.gameState.currentMatchday, 'Gespeicherter Spieltag wird wiederhergestellt.');
+
+deleteSavedGame();
+assert.equal(hasSavedGame(), false, 'Spielstand löschen entfernt den LocalStorage-Eintrag.');
