@@ -10,7 +10,9 @@ import {
   simulateRemainingMatches,
   submitTransferOffer,
   startNewGame,
+  autoPlanTraining,
   updateTransferFilter,
+  updateTrainingFocus,
   updateLineupFormation,
   updateUserTactics,
   watchUserMatchLive,
@@ -21,9 +23,10 @@ import { renderLineup } from './views/LineupView.js';
 import { renderMatchday } from './views/Matchday.js';
 import { renderSquad } from './views/Squad.js';
 import { renderTable } from './views/TableView.js';
+import { renderTraining } from './views/Training.js';
 import { renderTransfers } from './views/Transfers.js';
 
-const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Spieltag', 'Tabelle', 'Transfers'];
+const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers'];
 
 let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
@@ -85,6 +88,8 @@ function renderActiveView() {
       return renderSquad(gameState);
     case 'Aufstellung':
       return renderLineup(gameState);
+    case 'Training':
+      return renderTraining(gameState);
     case 'Spieltag':
       return renderMatchday(gameState);
     case 'Tabelle':
@@ -181,6 +186,22 @@ function attachEventHandlers() {
     });
   });
 
+
+  rootElement.querySelectorAll('[data-training-focus]').forEach((field) => {
+    field.addEventListener('change', () => {
+      updateTrainingFocus(gameState, field.value);
+      activeView = 'Training';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-training-auto]').forEach((button) => {
+    button.addEventListener('click', () => {
+      autoPlanTraining(gameState);
+      activeView = 'Training';
+      renderApp();
+    });
+  });
 
   rootElement.querySelectorAll('[data-transfer-filter]').forEach((field) => {
     field.addEventListener('change', () => {

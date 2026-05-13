@@ -1,4 +1,5 @@
 import { players } from '../data/players.js';
+import { createDevelopmentPlayer } from './development.js';
 import { teams } from '../data/teams.js';
 
 export const transferResponses = {
@@ -58,7 +59,7 @@ function getClubValue(teamId) {
 
 function getAskingPrice(player, sellerTeamId) {
   const strengthBonus = Math.max(0, player.strength - 70) * 0.03;
-  const talentBonus = Math.max(0, player.potential - player.strength) * 0.02;
+  const talentBonus = Math.max(0, (player.potentialRating ?? player.strength) - player.strength) * 0.02;
   const youngBonus = player.age <= 23 ? 0.08 : 0;
   const richClubBonus = getClubValue(sellerTeamId) >= 50_000_000 ? 0.08 : 0;
 
@@ -76,7 +77,7 @@ function playerIsUnwilling(player, sellerTeamId, buyerTeamId, wageOffer) {
   const sellerValue = getClubValue(sellerTeamId);
   const buyerValue = getClubValue(buyerTeamId);
   const desiredSalary = getDesiredSalary(player);
-  const isStarOrWonderkid = player.strength >= 80 || (player.age <= 22 && player.potential >= 84);
+  const isStarOrWonderkid = player.strength >= 80 || (player.age <= 22 && (player.potentialRating ?? player.strength) >= 84);
   const bigStepDown = sellerValue > buyerValue * 1.65;
 
   return isStarOrWonderkid && bigStepDown && wageOffer < desiredSalary * 1.25;
@@ -159,11 +160,11 @@ export function buyPlayer(state, playerId, offer = {}) {
   const player = players.find((entry) => entry.id === playerId);
   const feeOffer = normalizeNumber(offer.fee) ?? evaluation.askingPrice;
   const wageOffer = normalizeNumber(offer.salary) ?? evaluation.desiredSalary;
-  const signedPlayer = {
+  const signedPlayer = createDevelopmentPlayer({
     ...player,
     teamId: state.selectedClub.id,
     salary: wageOffer,
-  };
+  });
 
   state.squad = [...state.squad, signedPlayer];
   state.playerTeamIds[playerId] = state.selectedClub.id;

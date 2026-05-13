@@ -34,17 +34,17 @@ function average(values) {
   return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
-function getSelectedPlayers(team, lineup) {
-  const squad = getPlayersByTeamId(team.id);
+function getSelectedPlayers(team, lineup, squadOverride = null) {
+  const squad = squadOverride ?? getPlayersByTeamId(team.id);
   if (!lineup) return squad;
 
   const selectedPlayers = getLineupPlayers(squad, lineup).map(({ player }) => player).filter(Boolean);
   return selectedPlayers.length > 0 ? selectedPlayers : squad;
 }
 
-export function calculateTeamProfile(team, form = 0, tactics = undefined, lineup = null) {
-  const squad = getPlayersByTeamId(team.id);
-  const players = getSelectedPlayers(team, lineup);
+export function calculateTeamProfile(team, form = 0, tactics = undefined, lineup = null, squadOverride = null) {
+  const squad = squadOverride ?? getPlayersByTeamId(team.id);
+  const players = getSelectedPlayers(team, lineup, squad);
   const tacticEffect = calculateTacticEffect(tactics);
   const lineupBonus = lineup ? calculateLineupBonus(squad, lineup) : 0;
   const attackPlayers = players.filter((player) => ['OM', 'Flügel', 'ST', 'ZM'].includes(player.position));
@@ -112,12 +112,12 @@ function createTickerEvents({ homeTeam, awayTeam, homeGoals, awayGoals, homeScor
   return events.sort((a, b) => a.minute - b.minute || a.text.localeCompare(b.text));
 }
 
-export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {} }) {
+export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {}, squadByTeamId = {} }) {
   const homeTeam = teamsById[match.homeTeamId];
   const awayTeam = teamsById[match.awayTeamId];
   const random = seededRandom(hashString(`${match.id}-${homeTeam.id}-${awayTeam.id}`));
-  const homeProfile = calculateTeamProfile(homeTeam, formByTeamId[homeTeam.id] ?? 0, tacticsByTeamId[homeTeam.id], lineupByTeamId[homeTeam.id]);
-  const awayProfile = calculateTeamProfile(awayTeam, formByTeamId[awayTeam.id] ?? 0, tacticsByTeamId[awayTeam.id], lineupByTeamId[awayTeam.id]);
+  const homeProfile = calculateTeamProfile(homeTeam, formByTeamId[homeTeam.id] ?? 0, tacticsByTeamId[homeTeam.id], lineupByTeamId[homeTeam.id], squadByTeamId[homeTeam.id]);
+  const awayProfile = calculateTeamProfile(awayTeam, formByTeamId[awayTeam.id] ?? 0, tacticsByTeamId[awayTeam.id], lineupByTeamId[awayTeam.id], squadByTeamId[awayTeam.id]);
   const homeChanceRating = homeProfile.attack + HOME_ADVANTAGE - awayProfile.defense / 2;
   const awayChanceRating = awayProfile.attack - homeProfile.defense / 2;
   const homeGoals = calculateGoals(homeChanceRating, random);
@@ -141,6 +141,6 @@ export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTe
   };
 }
 
-export function simulateMatchday({ matchday, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {} }) {
-  return matchday.matches.map((match) => simulateMatch({ match, teamsById, formByTeamId, tacticsByTeamId, lineupByTeamId }));
+export function simulateMatchday({ matchday, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {}, squadByTeamId = {} }) {
+  return matchday.matches.map((match) => simulateMatch({ match, teamsById, formByTeamId, tacticsByTeamId, lineupByTeamId, squadByTeamId }));
 }

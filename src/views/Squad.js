@@ -9,6 +9,21 @@ const skillLabels = [
   ['Tor', 'goalkeeping'],
 ];
 
+
+function renderPlayerSymbols(player) {
+  const morale = (player.morale ?? 60) >= 70 ? '😊' : (player.morale ?? 60) < 45 ? '😟' : '😐';
+  const fitness = (player.fitness ?? 80) >= 72 ? '⚡' : '🪫';
+  const form = (player.form ?? 55) >= 72 ? '🔥' : '😐';
+
+  return `
+    <div class="symbol-list compact-symbols" aria-label="Form Fitness Moral">
+      <span title="Form">${form} Form ${player.form}</span>
+      <span title="Fitness">${fitness} Fitness ${player.fitness}</span>
+      <span title="Moral">${morale} Moral ${player.morale}</span>
+    </div>
+  `;
+}
+
 function renderSkillPills(player) {
   return skillLabels
     .map(([label, key]) => `<span class="skill-pill">${label}: <strong>${player[key]}</strong></span>`)
@@ -28,6 +43,7 @@ export function renderSquad(state) {
           <strong class="strength-score" role="cell">${player.strength}</strong>
           <div class="skill-list" role="cell">${renderSkillPills(player)}</div>
           <span role="cell">Talent ${player.potential}</span>
+          <div role="cell">${renderPlayerSymbols(player)}</div>
           <span role="cell">${formatBudget(player.marketValue)}</span>
         </div>
       `,
@@ -53,6 +69,7 @@ export function renderSquad(state) {
           <span role="columnheader">Stärke</span>
           <span role="columnheader">Fähigkeiten</span>
           <span role="columnheader">Potenzial</span>
+          <span role="columnheader">Laune</span>
           <span role="columnheader">Wert</span>
         </div>
         ${rows}
