@@ -1,5 +1,13 @@
 import { formatBudget } from '../utils/format.js';
 
+function renderMessages(messages) {
+  if (!messages.length) {
+    return '<p class="friendly-copy">Noch keine Nachrichten.</p>';
+  }
+
+  return messages.map((message) => `<li>${message}</li>`).join('');
+}
+
 export function renderDashboard(state) {
   return `
     <div class="view-grid">
@@ -21,6 +29,10 @@ export function renderDashboard(state) {
       <article class="stat-card">
         <span>Budget</span>
         <strong>${formatBudget(state.budget)}</strong>
+      </article>
+      <article class="message-card">
+        <h3>Nachrichten</h3>
+        <ul>${renderMessages(state.messages)}</ul>
       </article>
     </div>
   `;

@@ -1,4 +1,12 @@
-import { clubs, gameState, leagues, startNewGame } from './game/state.js';
+import {
+  clubs,
+  gameState,
+  leagues,
+  simulateCurrentMatchday,
+  simulateRemainingMatches,
+  startNewGame,
+  watchUserMatchLive,
+} from './game/state.js';
 import { formatBudget } from './utils/format.js';
 import { renderDashboard } from './views/Dashboard.js';
 import { renderLineup } from './views/Lineup.js';
@@ -134,6 +142,25 @@ function attachEventHandlers() {
   rootElement.querySelectorAll('[data-view]').forEach((button) => {
     button.addEventListener('click', () => {
       activeView = button.dataset.view;
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.dataset.action === 'simulate-matchday') {
+        simulateCurrentMatchday(gameState);
+      }
+
+      if (button.dataset.action === 'watch-live') {
+        watchUserMatchLive(gameState);
+      }
+
+      if (button.dataset.action === 'simulate-remaining') {
+        simulateRemainingMatches(gameState);
+      }
+
+      activeView = 'Spieltag';
       renderApp();
     });
   });

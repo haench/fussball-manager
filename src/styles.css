@@ -343,3 +343,79 @@ h2 {
     display: none;
   }
 }
+
+.matchday-view,
+.result-list,
+.fixture-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.matchday-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.fixture-list {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.fixture-list .fixture-card {
+  justify-content: space-between;
+}
+
+.highlight-fixture {
+  border-color: #1f7a3a;
+  box-shadow: 0 10px 30px rgba(31, 122, 58, 0.14);
+}
+
+.highlight-fixture small {
+  background: #1f7a3a;
+  border-radius: 999px;
+  color: white;
+  font-weight: 800;
+  padding: 0.25rem 0.55rem;
+}
+
+.result-card,
+.ticker-card,
+.message-card {
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 20px;
+  padding: 1.25rem;
+}
+
+.result-card {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.result-card p,
+.result-card small {
+  color: #5f735b;
+  margin-bottom: 0;
+}
+
+.ticker-card ul,
+.message-card ul {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.message-card {
+  grid-column: 1 / -1;
+}
+
+.standings .table-row {
+  grid-template-columns: 1.7fr 0.8fr 0.7fr 0.8fr 0.7fr 0.8fr;
+}
+
+@media (max-width: 720px) {
+  .standings .table-row {
+    grid-template-columns: 1fr;
+  }
+}
