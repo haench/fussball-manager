@@ -1,15 +1,19 @@
 import {
+  assignLineupPlayer,
   clubs,
   gameState,
   leagues,
+  setBestLineup,
   simulateCurrentMatchday,
   simulateRemainingMatches,
   startNewGame,
+  updateLineupFormation,
+  updateUserTactics,
   watchUserMatchLive,
 } from './game/state.js';
 import { formatBudget } from './utils/format.js';
 import { renderDashboard } from './views/Dashboard.js';
-import { renderLineup } from './views/Lineup.js';
+import { renderLineup } from './views/LineupView.js';
 import { renderMatchday } from './views/Matchday.js';
 import { renderSquad } from './views/Squad.js';
 import { renderTable } from './views/Table.js';
@@ -160,7 +164,38 @@ function attachEventHandlers() {
         simulateRemainingMatches(gameState);
       }
 
+      if (button.dataset.action === 'best-eleven') {
+        setBestLineup(gameState);
+        activeView = 'Aufstellung';
+        renderApp();
+        return;
+      }
+
       activeView = 'Spieltag';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-lineup-formation]').forEach((select) => {
+    select.addEventListener('change', () => {
+      updateLineupFormation(gameState, select.value);
+      activeView = 'Aufstellung';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-lineup-position]').forEach((select) => {
+    select.addEventListener('change', () => {
+      assignLineupPlayer(gameState, select.dataset.lineupPosition, select.value);
+      activeView = 'Aufstellung';
+      renderApp();
+    });
+  });
+
+  rootElement.querySelectorAll('[data-tactic-field]').forEach((select) => {
+    select.addEventListener('change', () => {
+      updateUserTactics(gameState, select.dataset.tacticField, select.value);
+      activeView = 'Aufstellung';
       renderApp();
     });
   });

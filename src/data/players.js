@@ -2,13 +2,23 @@ export const supportedPositions = ['TW', 'IV', 'AV', 'DM', 'ZM', 'OM', 'Flügel'
 
 const rosterBlueprint = [
   { suffix: 'Fänger', position: 'TW', age: 28, strength: 74, pace: 42, shooting: 18, passing: 58, defending: 36, goalkeeping: 81, potential: 78 },
+  { suffix: 'Rückhalt', position: 'TW', age: 21, strength: 66, pace: 45, shooting: 15, passing: 54, defending: 32, goalkeeping: 73, potential: 80 },
   { suffix: 'Mauer', position: 'IV', age: 30, strength: 72, pace: 55, shooting: 31, passing: 60, defending: 79, goalkeeping: 12, potential: 73 },
+  { suffix: 'Block', position: 'IV', age: 26, strength: 70, pace: 58, shooting: 28, passing: 57, defending: 76, goalkeeping: 10, potential: 76 },
+  { suffix: 'Grätsche', position: 'IV', age: 23, strength: 68, pace: 61, shooting: 30, passing: 56, defending: 73, goalkeeping: 9, potential: 79 },
   { suffix: 'Flanke', position: 'AV', age: 24, strength: 70, pace: 76, shooting: 38, passing: 66, defending: 67, goalkeeping: 10, potential: 77 },
+  { suffix: 'Sprint', position: 'AV', age: 22, strength: 68, pace: 81, shooting: 35, passing: 64, defending: 65, goalkeeping: 9, potential: 80 },
   { suffix: 'Staubsauger', position: 'DM', age: 27, strength: 73, pace: 62, shooting: 45, passing: 71, defending: 75, goalkeeping: 11, potential: 76 },
+  { suffix: 'Anker', position: 'DM', age: 25, strength: 69, pace: 60, shooting: 42, passing: 68, defending: 72, goalkeeping: 10, potential: 77 },
   { suffix: 'Motor', position: 'ZM', age: 25, strength: 74, pace: 67, shooting: 57, passing: 78, defending: 64, goalkeeping: 9, potential: 80 },
+  { suffix: 'Takt', position: 'ZM', age: 28, strength: 71, pace: 64, shooting: 54, passing: 76, defending: 61, goalkeeping: 8, potential: 74 },
   { suffix: 'Idee', position: 'OM', age: 23, strength: 75, pace: 70, shooting: 69, passing: 80, defending: 42, goalkeeping: 8, potential: 83 },
+  { suffix: 'Zauber', position: 'OM', age: 20, strength: 68, pace: 72, shooting: 65, passing: 74, defending: 36, goalkeeping: 7, potential: 84 },
   { suffix: 'Wirbel', position: 'Flügel', age: 22, strength: 73, pace: 84, shooting: 66, passing: 68, defending: 39, goalkeeping: 7, potential: 82 },
+  { suffix: 'Turbo', position: 'Flügel', age: 24, strength: 70, pace: 86, shooting: 63, passing: 65, defending: 37, goalkeeping: 7, potential: 78 },
+  { suffix: 'Kurve', position: 'Flügel', age: 19, strength: 66, pace: 82, shooting: 60, passing: 64, defending: 35, goalkeeping: 6, potential: 83 },
   { suffix: 'Knipser', position: 'ST', age: 26, strength: 76, pace: 73, shooting: 82, passing: 59, defending: 34, goalkeeping: 8, potential: 81 },
+  { suffix: 'Joker', position: 'ST', age: 21, strength: 69, pace: 75, shooting: 76, passing: 55, defending: 31, goalkeeping: 7, potential: 82 },
 ];
 
 const teamSeeds = {

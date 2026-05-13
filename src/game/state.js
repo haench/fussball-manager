@@ -1,4 +1,6 @@
 import { getPlayersByTeamId } from '../data/players.js';
+import { buildBestLineup, createInitialLineup, defaultFormation, formations } from './lineup.js';
+import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
 import { leagues, teamsByLeague } from '../data/teams.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
@@ -19,6 +21,7 @@ export const initialGameState = {
   liveMatch: null,
   messages: [],
   tacticsByTeamId: {},
+  lineupByTeamId: {},
 };
 
 export const gameState = structuredClone(initialGameState);
@@ -154,6 +157,7 @@ export function simulateCurrentMatchday(state = gameState) {
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
+    lineupByTeamId: state.lineupByTeamId,
   });
 
   return storeMatchdayResults(state, matchday, results);
@@ -172,6 +176,7 @@ export function watchUserMatchLive(state = gameState) {
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
+    lineupByTeamId: state.lineupByTeamId,
   })[0];
 
   storeMatchdayResults(state, getMatchday(state.schedule, state.currentMatchday), [result], { advanceMatchday: false });
@@ -198,6 +203,7 @@ export function simulateRemainingMatches(state = gameState) {
     teamsById: createTeamsById(state.currentLeague),
     formByTeamId: createFormMap(state),
     tacticsByTeamId: state.tacticsByTeamId,
+    lineupByTeamId: state.lineupByTeamId,
   });
 
   return storeMatchdayResults(state, matchday, results);
@@ -218,6 +224,51 @@ export function getCurrentMatchdayViewModel(state = gameState) {
   };
 }
 
+export function updateLineupFormation(state = gameState, formation = defaultFormation) {
+  if (!state.selectedClub || !formations[formation]) return null;
+
+  state.lineupByTeamId[state.selectedClub.id] = buildBestLineup(state.squad, formation);
+  return state.lineupByTeamId[state.selectedClub.id];
+}
+
+export function assignLineupPlayer(state = gameState, slotId, playerId) {
+  if (!state.selectedClub) return null;
+
+  const teamId = state.selectedClub.id;
+  const currentLineup = state.lineupByTeamId[teamId] ?? createInitialLineup(state.squad, defaultFormation);
+  const assignments = Object.fromEntries(
+    Object.entries(currentLineup.assignments ?? {}).filter(([, assignedPlayerId]) => assignedPlayerId !== playerId),
+  );
+
+  if (playerId) {
+    assignments[slotId] = playerId;
+  } else {
+    delete assignments[slotId];
+  }
+
+  state.lineupByTeamId[teamId] = { ...currentLineup, assignments };
+  return state.lineupByTeamId[teamId];
+}
+
+export function setBestLineup(state = gameState) {
+  if (!state.selectedClub) return null;
+
+  const currentFormation = state.lineupByTeamId[state.selectedClub.id]?.formation ?? defaultFormation;
+  state.lineupByTeamId[state.selectedClub.id] = buildBestLineup(state.squad, currentFormation);
+  return state.lineupByTeamId[state.selectedClub.id];
+}
+
+export function updateUserTactics(state = gameState, field, value) {
+  if (!state.selectedClub || !tacticOptions[field]?.some((option) => option.value === value)) return null;
+
+  const teamId = state.selectedClub.id;
+  state.tacticsByTeamId[teamId] = normalizeTactics({
+    ...(state.tacticsByTeamId[teamId] ?? defaultTactics),
+    [field]: value,
+  });
+  return state.tacticsByTeamId[teamId];
+}
+
 export function startNewGame(club) {
   Object.assign(gameState, {
     selectedClub: club,
@@ -231,7 +282,8 @@ export function startNewGame(club) {
     latestMatchdayResults: [],
     liveMatch: null,
     messages: ['Die Saison wurde mit einem 34-Spieltage-Plan angesetzt.'],
-    tacticsByTeamId: { [club.id]: 'kontrolliert' },
+    tacticsByTeamId: { [club.id]: { ...defaultTactics } },
+    lineupByTeamId: { [club.id]: createInitialLineup(createInitialSquad(club.id), defaultFormation) },
   });
 
   return gameState;

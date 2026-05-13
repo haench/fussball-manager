@@ -1,11 +1,8 @@
 import { getPlayersByTeamId } from '../data/players.js';
+import { calculateLineupBonus, getLineupPlayers } from './lineup.js';
+import { calculateTacticEffect } from './tactics.js';
 
 const HOME_ADVANTAGE = 4;
-const TACTIC_BONUS = {
-  offensiv: { attack: 5, defense: -2, label: 'mutiger Offensivtaktik' },
-  kontrolliert: { attack: 2, defense: 2, label: 'kontrolliertem Ballbesitz' },
-  defensiv: { attack: -2, defense: 5, label: 'kompakter Defensive' },
-};
 
 function hashString(value) {
   return [...value].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 2166136261);
@@ -34,23 +31,32 @@ function pickWeighted(players, random) {
 }
 
 function average(values) {
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
-export function calculateTeamProfile(team, form = 0, tactic = 'kontrolliert') {
-  const players = getPlayersByTeamId(team.id);
-  const tacticEffect = TACTIC_BONUS[tactic] ?? TACTIC_BONUS.kontrolliert;
-  const attackPlayers = players.filter((player) => ['OM', 'Flügel', 'ST'].includes(player.position));
-  const defensePlayers = players.filter((player) => ['TW', 'IV', 'AV', 'DM'].includes(player.position));
+function getSelectedPlayers(team, lineup) {
+  const squad = getPlayersByTeamId(team.id);
+  if (!lineup) return squad;
+
+  const selectedPlayers = getLineupPlayers(squad, lineup).map(({ player }) => player).filter(Boolean);
+  return selectedPlayers.length > 0 ? selectedPlayers : squad;
+}
+
+export function calculateTeamProfile(team, form = 0, tactics = undefined, lineup = null) {
+  const squad = getPlayersByTeamId(team.id);
+  const players = getSelectedPlayers(team, lineup);
+  const tacticEffect = calculateTacticEffect(tactics);
+  const lineupBonus = lineup ? calculateLineupBonus(squad, lineup) : 0;
+  const attackPlayers = players.filter((player) => ['OM', 'Flügel', 'ST', 'ZM'].includes(player.position));
+  const defensePlayers = players.filter((player) => ['TW', 'IV', 'AV', 'DM', 'ZM'].includes(player.position));
 
   return {
     team,
     players,
-    tactic,
     tacticLabel: tacticEffect.label,
-    strength: Math.round(average(players.map((player) => player.strength)) + form),
-    attack: average(attackPlayers.map((player) => (player.shooting + player.pace + player.passing) / 3)) + form + tacticEffect.attack,
-    defense: average(defensePlayers.map((player) => (player.defending + player.strength + player.goalkeeping) / 3)) + form + tacticEffect.defense,
+    strength: Math.round(average(players.map((player) => player.strength)) + form + lineupBonus),
+    attack: average(attackPlayers.map((player) => (player.shooting + player.pace + player.passing) / 3)) + form + tacticEffect.attack + lineupBonus,
+    defense: average(defensePlayers.map((player) => (player.defending + player.strength + player.goalkeeping) / 3)) + form + tacticEffect.defense + lineupBonus,
   };
 }
 
@@ -106,12 +112,12 @@ function createTickerEvents({ homeTeam, awayTeam, homeGoals, awayGoals, homeScor
   return events.sort((a, b) => a.minute - b.minute || a.text.localeCompare(b.text));
 }
 
-export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTeamId = {} }) {
+export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {} }) {
   const homeTeam = teamsById[match.homeTeamId];
   const awayTeam = teamsById[match.awayTeamId];
   const random = seededRandom(hashString(`${match.id}-${homeTeam.id}-${awayTeam.id}`));
-  const homeProfile = calculateTeamProfile(homeTeam, formByTeamId[homeTeam.id] ?? 0, tacticsByTeamId[homeTeam.id] ?? 'kontrolliert');
-  const awayProfile = calculateTeamProfile(awayTeam, formByTeamId[awayTeam.id] ?? 0, tacticsByTeamId[awayTeam.id] ?? 'kontrolliert');
+  const homeProfile = calculateTeamProfile(homeTeam, formByTeamId[homeTeam.id] ?? 0, tacticsByTeamId[homeTeam.id], lineupByTeamId[homeTeam.id]);
+  const awayProfile = calculateTeamProfile(awayTeam, formByTeamId[awayTeam.id] ?? 0, tacticsByTeamId[awayTeam.id], lineupByTeamId[awayTeam.id]);
   const homeChanceRating = homeProfile.attack + HOME_ADVANTAGE - awayProfile.defense / 2;
   const awayChanceRating = awayProfile.attack - homeProfile.defense / 2;
   const homeGoals = calculateGoals(homeChanceRating, random);
@@ -135,6 +141,6 @@ export function simulateMatch({ match, teamsById, formByTeamId = {}, tacticsByTe
   };
 }
 
-export function simulateMatchday({ matchday, teamsById, formByTeamId = {}, tacticsByTeamId = {} }) {
-  return matchday.matches.map((match) => simulateMatch({ match, teamsById, formByTeamId, tacticsByTeamId }));
+export function simulateMatchday({ matchday, teamsById, formByTeamId = {}, tacticsByTeamId = {}, lineupByTeamId = {} }) {
+  return matchday.matches.map((match) => simulateMatch({ match, teamsById, formByTeamId, tacticsByTeamId, lineupByTeamId }));
 }
