@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 
 import { createSeasonSchedule } from '../src/game/schedule.js';
-import { gameState, resetGameProgress, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
+import { gameState, resetGameProgress, simulateCurrentMatchday, simulateRemainingMatches, startNewGame, watchUserMatchLive } from '../src/game/state.js';
+import { isFinalMatchdayComplete } from '../src/game/seasonEnd.js';
 import { getTableZone } from '../src/game/table.js';
+import { renderSeasonEnd } from '../src/views/SeasonEnd.js';
 import { renderSquad } from '../src/views/Squad.js';
 import { renderTable } from '../src/views/TableView.js';
 import { fantasyTeams, teamsByLeague, TEAMS_PER_LEAGUE } from '../src/data/teams.js';
@@ -76,6 +78,16 @@ assert.equal(
   watchedMatchday.matches.length,
   'Nach der Restsimulation enthält latestMatchdayResults den vollständigen Spieltag.',
 );
+
+while (!isFinalMatchdayComplete(gameState)) {
+  simulateCurrentMatchday(gameState);
+}
+
+const seasonEndMarkup = renderSeasonEnd(gameState);
+assert.match(seasonEndMarkup, /Saisonabschluss/, 'Die Saisonabschlussansicht wird nach dem letzten kompletten Spieltag gerendert.');
+assert.match(seasonEndMarkup, /Finale Position/, 'Die Abschlussansicht zeigt die finale Platzierung.');
+assert.match(seasonEndMarkup, /Torschützenkönig/, 'Die Abschlussansicht zeigt den Topscorer-Bereich aus Matchdaten.');
+assert.match(seasonEndMarkup, /Neue Saison starten/, 'Die Abschlussansicht bietet einen Neustart der Saison an.');
 
 
 const storage = new Map();

@@ -1241,3 +1241,118 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+.season-end-view {
+  display: grid;
+  gap: 1.5rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.season-end-hero {
+  background: linear-gradient(135deg, #f7fbf6 0%, #e7f3e4 100%);
+  border: 1px solid #d7e7d4;
+  border-radius: 26px;
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.season-end-hero-success {
+  background: radial-gradient(circle at top left, rgba(255, 214, 102, 0.42), transparent 32%), linear-gradient(135deg, #ffffff 0%, #dff1dc 100%);
+  border-color: rgba(31, 122, 58, 0.35);
+  box-shadow: 0 20px 70px rgba(31, 122, 58, 0.16);
+}
+
+.season-end-actions,
+.matchday-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.season-end-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.season-end-card,
+.season-end-lists article {
+  background: #f7fbf6;
+  border: 1px solid #d7e7d4;
+  border-radius: 20px;
+  padding: 1.25rem;
+}
+
+.season-end-card {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.season-end-card span {
+  color: #5f735b;
+  font-weight: 700;
+}
+
+.season-end-card strong {
+  font-size: 1.45rem;
+}
+
+.highlight-card,
+.success-card {
+  border-color: rgba(31, 122, 58, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(31, 122, 58, 0.12);
+}
+
+.season-end-lists {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.season-end-lists ul {
+  display: grid;
+  gap: 0.65rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.season-achievements li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.confetti-burst {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.confetti-burst span {
+  animation: confetti-fall 1.9s ease-in-out infinite;
+  font-size: clamp(1.6rem, 4vw, 3rem);
+  position: absolute;
+  top: -3rem;
+}
+
+.confetti-burst span:nth-child(1) { left: 8%; animation-delay: 0s; }
+.confetti-burst span:nth-child(2) { left: 28%; animation-delay: 0.25s; }
+.confetti-burst span:nth-child(3) { left: 52%; animation-delay: 0.1s; }
+.confetti-burst span:nth-child(4) { left: 72%; animation-delay: 0.42s; }
+.confetti-burst span:nth-child(5) { left: 90%; animation-delay: 0.18s; }
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-2rem) rotate(0deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(26rem) rotate(260deg);
+  }
+}

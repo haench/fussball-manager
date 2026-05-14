@@ -40,8 +40,10 @@ import { renderTable } from './views/TableView.js';
 import { renderTraining } from './views/Training.js';
 import { renderTransfers } from './views/Transfers.js';
 import { renderLongTerm } from './views/LongTerm.js';
+import { renderSeasonEnd } from './views/SeasonEnd.js';
+import { isFinalMatchdayComplete } from './game/seasonEnd.js';
 
-const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers', 'Verein'];
+const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers', 'Verein', 'Saisonabschluss'];
 
 let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
@@ -151,6 +153,8 @@ function renderActiveView() {
       return renderTransfers(gameState);
     case 'Verein':
       return renderLongTerm(gameState);
+    case 'Saisonabschluss':
+      return renderSeasonEnd(gameState);
     case 'Dashboard':
     default:
       return renderDashboard(gameState);
@@ -177,7 +181,7 @@ function renderManagerLayout() {
         </div>
         <div class="header-meta">
           <span>${getDataModeSummary().isRealImport ? 'realImport privat' : 'fantasy'}</span>
-          <span>Spieltag ${gameState.currentMatchday}</span>
+          <span>${isFinalMatchdayComplete(gameState) ? 'Saison beendet' : `Spieltag ${gameState.currentMatchday}`}</span>
           <strong>Transfer ${formatBudget(gameState.transferBudget)}</strong>
           <span>Gehalt ${formatBudget(gameState.currentWageSum)} / ${formatBudget(gameState.wageBudget)}</span>
         </div>
@@ -315,7 +319,22 @@ function attachEventHandlers() {
         return;
       }
 
-      commitStateAndRender({ view: 'Spieltag' });
+      commitStateAndRender({ view: isFinalMatchdayComplete(gameState) ? 'Saisonabschluss' : 'Spieltag' });
+    });
+  });
+
+
+  rootElement.querySelectorAll('[data-season-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      if (button.dataset.seasonAction === 'new-season') {
+        startNewGame(gameState.selectedClub);
+        commitStateAndRender({ view: 'Dashboard' });
+        return;
+      }
+
+      if (button.dataset.seasonAction === 'hall-of-fame') {
+        commitStateAndRender({ view: 'Verein' });
+      }
     });
   });
 
