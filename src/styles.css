@@ -1356,3 +1356,331 @@ select {
     transform: translateY(26rem) rotate(260deg);
   }
 }
+
+.home-dashboard {
+  background:
+    linear-gradient(180deg, rgba(53, 91, 132, 0.88), rgba(28, 111, 39, 0.9) 48%, rgba(18, 76, 26, 0.96)),
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.2) 0 9%, transparent 10% 100%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.07) 0 10%, transparent 10% 20%);
+  border-radius: 30px;
+  box-shadow: inset 0 -90px 100px rgba(0, 0, 0, 0.16);
+  color: white;
+  display: grid;
+  gap: 1rem;
+  margin: calc(clamp(1.5rem, 4vw, 3rem) * -1);
+  min-height: 760px;
+  overflow: hidden;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+.club-banner {
+  display: grid;
+  gap: 1rem;
+  padding-top: 0.25rem;
+  text-align: center;
+}
+
+.club-banner__topline,
+.club-banner__meta {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.club-banner__topline span,
+.club-banner__meta span,
+.club-banner__meta strong {
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.24);
+}
+
+.club-banner__topline span,
+.club-banner__meta {
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.ghost-danger-button {
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  color: white;
+  padding: 0.55rem 0.85rem;
+}
+
+.ghost-danger-button:hover {
+  background: rgba(179, 38, 30, 0.86);
+}
+
+.club-ribbon {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
+  max-width: 720px;
+  position: relative;
+  width: min(100%, 720px);
+}
+
+.club-ribbon::before,
+.club-ribbon::after {
+  background: #d6b800;
+  content: "";
+  height: 68%;
+  position: absolute;
+  top: 16%;
+  width: 5rem;
+  z-index: 0;
+}
+
+.club-ribbon::before {
+  clip-path: polygon(0 50%, 32% 0, 100% 0, 100% 100%, 32% 100%);
+  left: -2rem;
+}
+
+.club-ribbon::after {
+  clip-path: polygon(0 0, 68% 0, 100% 50%, 68% 100%, 0 100%);
+  right: -2rem;
+}
+
+.club-ribbon span {
+  background: linear-gradient(180deg, #ffe26b, #ffd000);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  color: #11612d;
+  display: block;
+  font-size: clamp(2rem, 7vw, 4.4rem);
+  font-weight: 950;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  padding: 1rem clamp(1.25rem, 6vw, 4.5rem);
+  position: relative;
+  text-transform: uppercase;
+  width: 100%;
+  z-index: 1;
+}
+
+.quick-stats,
+.home-tile-grid,
+.home-secondary-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.quick-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.home-stat-card,
+.home-tile,
+.match-cta,
+.home-goal-card,
+.home-secondary-grid .news-card,
+.home-secondary-grid .message-card {
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 14px 30px rgba(5, 32, 9, 0.18);
+}
+
+.home-stat-card {
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 18px;
+  color: #172312;
+  display: grid;
+  gap: 0.15rem;
+  min-height: 110px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.home-stat-card span,
+.home-stat-card small {
+  color: #4f664c;
+  font-weight: 800;
+}
+
+.home-stat-card strong {
+  color: #0f6328;
+  font-size: clamp(1.7rem, 5vw, 2.65rem);
+  line-height: 1;
+}
+
+.home-tile-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.home-tile {
+  align-content: center;
+  background: linear-gradient(180deg, #168410, #075d08);
+  border-radius: 18px;
+  color: white;
+  display: grid;
+  gap: 0.25rem;
+  min-height: 140px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.home-tile:hover {
+  background: linear-gradient(180deg, #229c1b, #07640a);
+}
+
+.tile-icon {
+  font-size: 2.1rem;
+  line-height: 1;
+}
+
+.tile-label {
+  font-size: 0.95rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.home-tile strong {
+  font-size: clamp(1.35rem, 3vw, 2.1rem);
+  line-height: 1.1;
+}
+
+.home-tile small {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 800;
+}
+
+.home-goal-card {
+  background: rgba(210, 238, 151, 0.92);
+  border-radius: 18px;
+  color: #123816;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.home-goal-card .eyebrow {
+  color: #156c24;
+}
+
+.match-cta {
+  background: linear-gradient(180deg, #4b952d, #2d7d1e);
+  border-radius: 12px;
+  color: white;
+  display: grid;
+  gap: 0.25rem;
+  margin-top: auto;
+  padding: 1rem 1.25rem;
+  text-align: center;
+}
+
+.match-cta:hover {
+  background: linear-gradient(180deg, #5aaa37, #338b22);
+}
+
+.match-cta span,
+.match-cta small {
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 900;
+}
+
+.match-cta strong {
+  font-size: clamp(1.25rem, 4vw, 2rem);
+}
+
+.home-secondary-grid {
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+}
+
+.home-secondary-grid .news-card,
+.home-secondary-grid .message-card {
+  background: rgba(247, 251, 246, 0.93);
+  color: #172312;
+}
+
+.home-secondary-grid .message-card {
+  grid-column: auto;
+}
+
+@media (max-width: 820px) {
+  .manager-layout {
+    padding: 0;
+  }
+
+  .manager-header,
+  .main-nav {
+    margin-inline: 1rem;
+  }
+
+  .content-card {
+    border-radius: 0;
+    padding: 0;
+  }
+
+  .home-dashboard {
+    border-radius: 0;
+    margin: 0;
+    min-height: calc(100vh - 1rem);
+    padding: 1rem;
+  }
+
+  .club-banner__topline,
+  .club-banner__meta,
+  .home-goal-card {
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .club-ribbon::before,
+  .club-ribbon::after {
+    width: 3rem;
+  }
+
+  .club-ribbon::before {
+    left: -1rem;
+  }
+
+  .club-ribbon::after {
+    right: -1rem;
+  }
+
+  .quick-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quick-stats .home-stat-card:nth-child(3) {
+    grid-column: span 1;
+  }
+
+  .quick-stats .home-stat-card:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  .home-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .main-nav button {
+    flex: 0 0 auto;
+  }
+
+  .home-stat-card,
+  .home-tile {
+    min-height: 116px;
+    padding: 0.85rem;
+  }
+
+  .tile-icon {
+    font-size: 1.8rem;
+  }
+}
