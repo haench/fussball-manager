@@ -104,7 +104,7 @@ function renderStartScreen() {
   const leagueTabs = leagues
     .map(
       (league) => `
-        <button class="${league === selectedLeague ? 'active' : ''}" data-league="${league}" type="button">
+        <button class="${league === selectedLeague ? 'active' : ''}" data-league="${league}" role="tab" aria-selected="${league === selectedLeague ? 'true' : 'false'}" type="button">
           ${league}
         </button>
       `,
@@ -165,7 +165,7 @@ function renderManagerLayout() {
   const navButtons = navigationItems
     .map(
       (item) => `
-        <button class="${item === activeView ? 'active' : ''}" data-view="${item}" type="button">
+        <button class="${item === activeView ? 'active' : ''}" data-view="${item}" ${item === activeView ? 'aria-current="page"' : ''} type="button">
           ${item}
         </button>
       `,
@@ -174,6 +174,7 @@ function renderManagerLayout() {
 
   return `
     <main class="app-shell manager-layout">
+      <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
       <header class="manager-header">
         <div>
           <p class="eyebrow">${gameState.currentLeague}</p>
@@ -188,7 +189,7 @@ function renderManagerLayout() {
       </header>
 
       <nav class="main-nav" aria-label="Hauptnavigation">${navButtons}</nav>
-      <section class="content-card">${renderActiveView()}</section>
+      <section class="content-card" id="main-content" tabindex="-1">${renderActiveView()}</section>
     </main>
   `;
 }
