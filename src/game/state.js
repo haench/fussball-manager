@@ -3,7 +3,7 @@ import { applyMatchMood, applyMonthlyDevelopment } from './development.js';
 import { buildBestLineup, createInitialLineup, defaultFormation, formations } from './lineup.js';
 import { defaultTactics, normalizeTactics, tacticOptions } from './tactics.js';
 import { activeDataMode, DATA_MODES, leagues, teamsByLeague as clubs, useFantasyTeams, useImportedTeams } from '../data/teams.js';
-import { calculateLeagueTable, createInitialTable, createSeasonGoal } from './table.js';
+import { calculateLeagueTable, createInitialTable, createSeasonGoal, getSeasonGoalStatus } from './table.js';
 import { createSeasonSchedule, getMatchday, getNextUserFixture } from './schedule.js';
 import { simulateMatchday } from './simulation.js';
 import { addNewsItems, createInitialNewsItems, generateMatchdayNews } from './news.js';
@@ -12,6 +12,7 @@ import { evaluateAchievements, createInitialAchievementState } from './achieveme
 import { buyClubUpgrade, calculateWeeklyUpgradeIncome, createInitialClubUpgrades, getMedicalFatigueReduction, getTrainingGroundDevelopmentBonus } from './clubUpgrades.js';
 import { createInitialCupState, shouldPlayCupRound, simulateCupRound } from './cup.js';
 import { createInitialYouthState, maybeGenerateYouthPlayer } from './youth.js';
+import { isFinalMatchdayComplete } from './seasonEnd.js';
 import {
   buyPlayer,
   calculateCurrentWageSum,
@@ -203,13 +204,23 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
     cupWinnerId = cupRound.winnerId;
   }
 
+  recalculateTable(state);
+
+  const seasonFinished = isFinalMatchdayComplete(state);
   const achievementMessages = evaluateAchievements(state, {
     userResult: newUserResult,
-    seasonFinished: matchday.matchday >= state.schedule.length,
+    seasonFinished,
     cupWinnerId,
   });
+  const goalStatus = getSeasonGoalStatus(state);
+  const seasonGoalMessages = seasonFinished && goalStatus.goal && goalStatus.isInTarget
+    ? [`🎉 Saisonziel erreicht: ${goalStatus.goal.label}!`]
+    : [];
 
-  recalculateTable(state);
+  if (seasonGoalMessages.length > 0) {
+    state.feedbackEffects = ['confetti', ...(state.feedbackEffects ?? [])].slice(0, 3);
+  }
+
   addNewsItems(state, generateMatchdayNews({ state, matchday, results: matchdayResults, userResult }));
 
   state.messages = [
@@ -221,6 +232,7 @@ function storeMatchdayResults(state, matchday, results, { advanceMatchday = true
     ...incomeMessages,
     ...cupMessages,
     ...achievementMessages,
+    ...seasonGoalMessages,
   ].slice(0, 12);
 
   if (advanceMatchday && state.currentMatchday < state.schedule.length) {
