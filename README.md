@@ -25,6 +25,16 @@ Minimales JSON-Beispiel:
 }
 ```
 
+
+## Codex-Umgebung einrichten
+
+Für Codex-Container müssen die npm-Abhängigkeiten und der Chromium-Browser für Playwright installiert werden:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+```
+
 ## Starten
 
 ```bash
