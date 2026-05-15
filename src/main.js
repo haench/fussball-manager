@@ -19,7 +19,7 @@ import {
 } from "./state.js";
 import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
-import goalSplashImage from "../assets/Tor.png";
+const goalSplashImage = "./assets/Tor.png";
 
 const app = document.getElementById("app");
 const tacticButtons = [
