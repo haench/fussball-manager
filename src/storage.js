@@ -1,5 +1,7 @@
 const STORAGE_KEY = "fussball-manager.save.v1";
 const SAVE_VERSION = 1;
+const VALID_POSITIONS = new Set(["goalkeeper", "defender", "midfielder", "striker"]);
+const VALID_FORMATIONS = new Set(["4-4-2", "4-3-3", "3-5-2"]);
 
 function canUseLocalStorage() {
   try {
@@ -24,7 +26,8 @@ function isPlayer(value) {
     && typeof value.id === "string"
     && typeof value.name === "string"
     && Number.isFinite(value.strength)
-    && typeof value.isStarter === "boolean";
+    && typeof value.isStarter === "boolean"
+    && (typeof value.position === "undefined" || VALID_POSITIONS.has(value.position));
 }
 
 function isMatchHistoryEntry(value) {
@@ -55,6 +58,7 @@ function normalizeSaveData(value) {
     || !isPlainObject(team)
     || typeof team.id !== "string"
     || typeof team.name !== "string"
+    || (typeof team.formation !== "undefined" && !VALID_FORMATIONS.has(team.formation))
     || !Array.isArray(team.players)
     || !team.players.every(isPlayer)
     || !isPlainObject(opponent)

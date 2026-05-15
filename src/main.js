@@ -1,6 +1,23 @@
 import { uiCopy } from "./config.js";
 import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
-import { continueGame, createNewGame, gameState, subscribe } from "./state.js";
+import {
+  autoPickBestEleven,
+  continueGame,
+  createNewGame,
+  gameState,
+  getLineupPositionCounts,
+  getStarterCount,
+  isLineupValid,
+  positionLabels,
+  positionOrder,
+  positionShortLabels,
+  setFormation,
+  setPlayerStarter,
+  setScreen,
+  sortPlayersByPosition,
+  subscribe
+} from "./state.js";
+import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
 import goalSplashImage from "../assets/Tor.png";
 
@@ -19,13 +36,73 @@ function formatStrength(value) {
   return Math.round(value);
 }
 
+function formatPosition(position) {
+  return positionLabels[position] ?? position;
+}
+
+function formatShortPosition(position) {
+  return {
+    goalkeeper: "TW",
+    defender: "VT",
+    midfielder: "MF",
+    striker: "ST"
+  }[position] ?? position;
+}
+
+function renderLineupShape(team) {
+  const counts = getLineupPositionCounts(team);
+  return positionOrder
+    .map((position) => `${positionShortLabels[position]} ${counts[position]}`)
+    .join(" · ");
+}
+
 function createTileMarkup(label) {
+  if (label === "Kader") {
+    return `
+      <button class="hub-tile hub-tile--primary" data-action="show-roster" data-testid="roster-tile">
+        <div class="hub-tile__icon">K</div>
+        <div class="hub-tile__label">Kader</div>
+      </button>
+    `;
+  }
+
   return `
     <div class="hub-tile is-disabled">
       <div class="hub-tile__icon">${label.slice(0, 1)}</div>
       <div class="hub-tile__label">${label}</div>
     </div>
   `;
+}
+
+function getLineupWarning(state) {
+  if (state.rosterMessage) {
+    return state.rosterMessage;
+  }
+
+  const starterCount = getStarterCount(state.team);
+  if (starterCount !== 11) {
+    return `Es müssen genau 11 Spieler in der Startelf sein. Aktuell: ${starterCount}/11.`;
+  }
+
+  return isLineupValid(state.team)
+    ? ""
+    : `Die Startelf passt nicht zur gewählten Besetzung ${state.team.formation}.`;
+}
+
+function renderFormationButtons(activeFormation) {
+  return formationIds
+    .map((formation) => `
+      <button
+        class="formation-button ${activeFormation === formation ? "formation-button--active" : ""}"
+        data-action="set-formation"
+        data-formation="${formation}"
+        data-testid="formation-${formation}"
+        aria-pressed="${activeFormation === formation}"
+      >
+        ${formation}
+      </button>
+    `)
+    .join("");
 }
 
 function renderRecentMatchBadge(entry, index) {
@@ -98,6 +175,8 @@ function renderStartScreen() {
 function renderClubScreen(state) {
   const ownStrength = formatStrength(calculateTeamStrength(state.team));
   const opponentStrength = formatStrength(state.opponent.averageStrength);
+  const lineupValid = isLineupValid(state.team);
+  const lineupWarning = getLineupWarning(state);
 
   return `
     <section class="screen screen--club">
@@ -148,8 +227,114 @@ function renderClubScreen(state) {
               </div>
             </div>
           </div>
-          <button class="action-button action-button--green next-match__button" data-action="next-match" data-testid="next-match-button">Nächstes Spiel</button>
+          ${lineupWarning ? `<p class="lineup-warning" data-testid="lineup-warning">${lineupWarning}</p>` : ""}
+          <button
+            class="action-button action-button--green next-match__button"
+            data-action="next-match"
+            data-testid="next-match-button"
+            ${lineupValid ? "" : "disabled"}
+          >
+            Nächstes Spiel
+          </button>
         </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderRosterPlayerRow(player) {
+  const targetStarterValue = !player.isStarter;
+  return `
+    <article class="roster-row ${player.isStarter ? "roster-row--starter" : ""}">
+      <div class="roster-row__position" title="${formatPosition(player.position)}">${formatShortPosition(player.position)}</div>
+      <div class="roster-row__name">${player.name}</div>
+      <div class="roster-row__strength">${player.strength}</div>
+      <div class="roster-row__status">${player.isStarter ? "Startelf" : "Bank"}</div>
+      <button
+        class="roster-row__button"
+        data-action="toggle-starter"
+        data-player-id="${player.id}"
+        data-starter="${targetStarterValue}"
+        data-testid="toggle-${player.id}"
+      >
+        ${player.isStarter ? "Auf Bank" : "In Startelf"}
+      </button>
+    </article>
+  `;
+}
+
+function renderRosterGroup(title, players, emptyText) {
+  return `
+    <section class="roster-group glossy-panel">
+      <div class="roster-group__title">
+        <span>${title}</span>
+        <strong>${players.length}</strong>
+      </div>
+      <div class="roster-table__head">
+        <span>Pos.</span>
+        <span>Name</span>
+        <span>Stärke</span>
+        <span>Status</span>
+        <span>Aktion</span>
+      </div>
+      ${players.length
+        ? sortPlayersByPosition(players).map(renderRosterPlayerRow).join("")
+        : `<p class="roster-empty">${emptyText}</p>`}
+    </section>
+  `;
+}
+
+function renderRosterScreen(state) {
+  const starters = state.team.players.filter((player) => player.isStarter);
+  const bench = state.team.players.filter((player) => !player.isStarter);
+  const starterCount = starters.length;
+  const lineupWarning = getLineupWarning(state);
+  const teamStrength = formatStrength(calculateTeamStrength(state.team));
+
+  return `
+    <section class="screen screen--club screen--roster">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="roster-screen">
+        <header class="club-header glossy-panel">
+          <div class="club-header__crest">FFC</div>
+          <div>
+            <div class="eyebrow">Kader</div>
+            <h1>${state.clubName}</h1>
+            <p>Startelf verwalten</p>
+          </div>
+        </header>
+
+        <section class="roster-summary glossy-panel">
+          <div>
+            <span class="stat-card__label">Startelf</span>
+            <strong>${starterCount}/11</strong>
+          </div>
+          <div>
+            <span class="stat-card__label">Teamstärke</span>
+            <strong>${teamStrength}</strong>
+          </div>
+          <div>
+            <span class="stat-card__label">Besetzung</span>
+            <strong class="roster-summary__shape">${renderLineupShape(state.team)}</strong>
+          </div>
+        </section>
+
+        ${lineupWarning ? `<p class="lineup-warning" data-testid="roster-warning">${lineupWarning}</p>` : ""}
+
+        <section class="formation-selector glossy-panel" data-testid="formation-selector">
+          <span class="formation-selector__label">Besetzung:</span>
+          <div class="formation-selector__buttons">
+            ${renderFormationButtons(state.team.formation)}
+          </div>
+        </section>
+
+        <div class="roster-actions">
+          <button class="action-button action-button--blue roster-action" data-action="auto-pick" data-testid="auto-pick-button">Beste 11 automatisch</button>
+          <button class="action-button action-button--green roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
+        </div>
+
+        ${renderRosterGroup("Startelf", starters, "Keine Startspieler gewählt.")}
+        ${renderRosterGroup("Bank", bench, "Alle Spieler stehen in der Startelf.")}
       </div>
     </section>
   `;
@@ -287,9 +472,7 @@ function renderResultScreen(state) {
       <div class="screen__backdrop"></div>
       <div class="mobile-shell" data-testid="result-screen">
         <div class="result-hero" data-testid="result-hero">
-          <div class="eyebrow">Spiel Ende</div>
           <h1>${match.result.headline}</h1>
-          <p>${match.result.label}</p>
         </div>
 
         <section class="result-card glossy-panel">
@@ -332,6 +515,8 @@ function render() {
     markup = renderStartScreen();
   } else if (gameState.currentScreen === "club") {
     markup = renderClubScreen(gameState);
+  } else if (gameState.currentScreen === "roster") {
+    markup = renderRosterScreen(gameState);
   } else if (gameState.currentScreen === "match") {
     markup = renderMatchScreen(gameState);
   } else if (gameState.currentScreen === "result") {
@@ -401,6 +586,17 @@ function updateTacticButtons(activeTactic) {
 function bindEvents() {
   document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame());
   document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame());
+  document.querySelector('[data-action="show-roster"]')?.addEventListener("click", () => setScreen("roster"));
+  document.querySelector('[data-action="back-club"]')?.addEventListener("click", () => setScreen("club"));
+  document.querySelector('[data-action="auto-pick"]')?.addEventListener("click", () => autoPickBestEleven());
+  document.querySelectorAll('[data-action="set-formation"]').forEach((button) => {
+    button.addEventListener("click", () => setFormation(button.dataset.formation));
+  });
+  document.querySelectorAll('[data-action="toggle-starter"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      setPlayerStarter(button.dataset.playerId, button.dataset.starter === "true");
+    });
+  });
   document.querySelector('[data-action="next-match"]')?.addEventListener("click", () => startMatch());
   document.querySelector('[data-action="continue"]')?.addEventListener("click", () => continueAfterMatch());
   document.querySelectorAll('[data-action="set-tactic"]').forEach((button) => {

@@ -1,4 +1,5 @@
 import { matchConfig } from "./config.js";
+import { AWAY_DEFAULT_FORMATION, DEFAULT_FORMATION, getFormationDefinition, isValidFormation } from "./formations.js";
 
 const goalSplashDurationMs = 1800;
 const goalSequenceDurationMs = 2600;
@@ -14,36 +15,47 @@ const lanes = {
   center: 0.5,
   right: 0.76
 };
-const roles = [
-  "goalkeeper",
-  "defender",
-  "defender",
-  "defender",
-  "defender",
-  "midfielder",
-  "midfielder",
-  "midfielder",
-  "forward",
-  "forward",
-  "forward"
-];
-const homeFormation = [
-  { x: 0.5, y: 0.92 },
-  { x: 0.2, y: 0.79 },
-  { x: 0.4, y: 0.78 },
-  { x: 0.6, y: 0.78 },
-  { x: 0.8, y: 0.79 },
-  { x: 0.28, y: 0.6 },
-  { x: 0.48, y: 0.56 },
-  { x: 0.68, y: 0.6 },
-  { x: 0.2, y: 0.38 },
-  { x: 0.5, y: 0.33 },
-  { x: 0.8, y: 0.38 }
-];
-const awayFormation = homeFormation.map((position) => ({
-  x: position.x,
-  y: 1 - position.y
-}));
+const homeFormations = {
+  "4-4-2": [
+    { x: 0.5, y: 0.92 },
+    { x: 0.2, y: 0.79 },
+    { x: 0.4, y: 0.78 },
+    { x: 0.6, y: 0.78 },
+    { x: 0.8, y: 0.79 },
+    { x: 0.18, y: 0.58 },
+    { x: 0.39, y: 0.56 },
+    { x: 0.61, y: 0.56 },
+    { x: 0.82, y: 0.58 },
+    { x: 0.38, y: 0.34 },
+    { x: 0.62, y: 0.34 }
+  ],
+  "4-3-3": [
+    { x: 0.5, y: 0.92 },
+    { x: 0.2, y: 0.79 },
+    { x: 0.4, y: 0.78 },
+    { x: 0.6, y: 0.78 },
+    { x: 0.8, y: 0.79 },
+    { x: 0.28, y: 0.6 },
+    { x: 0.5, y: 0.56 },
+    { x: 0.72, y: 0.6 },
+    { x: 0.2, y: 0.38 },
+    { x: 0.5, y: 0.33 },
+    { x: 0.8, y: 0.38 }
+  ],
+  "3-5-2": [
+    { x: 0.5, y: 0.92 },
+    { x: 0.28, y: 0.78 },
+    { x: 0.5, y: 0.77 },
+    { x: 0.72, y: 0.78 },
+    { x: 0.14, y: 0.58 },
+    { x: 0.32, y: 0.56 },
+    { x: 0.5, y: 0.54 },
+    { x: 0.68, y: 0.56 },
+    { x: 0.86, y: 0.58 },
+    { x: 0.38, y: 0.34 },
+    { x: 0.62, y: 0.34 }
+  ]
+};
 const breakoutPatterns = [
   { x: 0, y: 0, lane: 0 },
   { x: -0.24, y: 0.05, lane: 0.2 },
@@ -84,6 +96,54 @@ function weightedPick(options) {
   return options[options.length - 1].value;
 }
 
+function normalizeFormation(formation) {
+  return isValidFormation(formation) ? formation : DEFAULT_FORMATION;
+}
+
+function createRoleList(formation) {
+  const definition = getFormationDefinition(formation);
+  return [
+    ...Array.from({ length: definition.goalkeeper }, () => "goalkeeper"),
+    ...Array.from({ length: definition.defender }, () => "defender"),
+    ...Array.from({ length: definition.midfielder }, () => "midfielder"),
+    ...Array.from({ length: definition.striker }, () => "forward")
+  ];
+}
+
+function getBaseFormationPositions(teamSide, formation) {
+  const formationId = normalizeFormation(formation);
+  const positions = homeFormations[formationId] ?? homeFormations[DEFAULT_FORMATION];
+
+  if (teamSide === "home") {
+    return positions;
+  }
+
+  return positions.map((position) => ({
+    x: position.x,
+    y: 1 - position.y
+  }));
+}
+
+function getPlayerRole(players, index) {
+  return players[index]?.role ?? "midfielder";
+}
+
+function getPreferredCarrierIndex(players, phase) {
+  const preferredRole = ["pressure", "centralAttack", "wideAttack", "counter"].includes(phase.type)
+    ? "forward"
+    : "midfielder";
+  const matchingPlayers = players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => player.role === preferredRole);
+
+  if (matchingPlayers.length) {
+    return matchingPlayers[Math.floor(matchingPlayers.length / 2)].index;
+  }
+
+  const fallback = players.findIndex((player) => player.role === "midfielder");
+  return fallback >= 0 ? fallback : 0;
+}
+
 function getStarterPlayers(team) {
   return team.players.filter((player) => player.isStarter).slice(0, 11);
 }
@@ -94,14 +154,17 @@ export function calculateTeamStrength(team) {
   return starters.length ? sum / starters.length : 0;
 }
 
-function createPlayers(teamSide) {
-  const formation = teamSide === "home" ? homeFormation : awayFormation;
+function createPlayers(teamSide, formationId) {
+  const formation = normalizeFormation(formationId);
+  const positions = getBaseFormationPositions(teamSide, formation);
+  const playerRoles = createRoleList(formation);
 
-  return formation.map((position, index) => ({
+  return positions.map((position, index) => ({
     id: `${teamSide}-${index}`,
     team: teamSide,
-    role: roles[index],
+    role: playerRoles[index],
     lineIndex: index,
+    formation,
     x: position.x,
     y: position.y,
     targetX: position.x,
@@ -113,9 +176,11 @@ function createPlayers(teamSide) {
 }
 
 export function createInitialMatchState(team, opponent) {
+  const homeFormation = normalizeFormation(team.formation);
+  const awayFormation = AWAY_DEFAULT_FORMATION;
   const players = {
-    home: createPlayers("home"),
-    away: createPlayers("away")
+    home: createPlayers("home", homeFormation),
+    away: createPlayers("away", awayFormation)
   };
 
   return {
@@ -127,6 +192,10 @@ export function createInitialMatchState(team, opponent) {
     awayGoals: 0,
     tickerEvents: [],
     tactic: "normal",
+    formations: {
+      home: homeFormation,
+      away: awayFormation
+    },
     stats: {
       homeShots: 0,
       awayShots: 0,
@@ -188,7 +257,6 @@ function tacticSettings(tactic) {
       support: 1.24,
       width: 1.12,
       compactness: 0.88,
-      goalBias: 1.22,
       phaseSpeed: 1.08
     },
     normal: {
@@ -196,7 +264,6 @@ function tacticSettings(tactic) {
       support: 1,
       width: 1,
       compactness: 1,
-      goalBias: 1,
       phaseSpeed: 1
     },
     defensive: {
@@ -204,19 +271,36 @@ function tacticSettings(tactic) {
       support: 0.72,
       width: 0.86,
       compactness: 1.18,
-      goalBias: 0.78,
       phaseSpeed: 0.92
     }
   }[tactic] ?? tacticSettings("normal");
 }
 
-export function getFormationPositions(teamSide, tactic = "normal") {
-  const formation = teamSide === "home" ? homeFormation : awayFormation;
+export function getTacticGoalModifiers(tactic) {
+  return {
+    aggressive: {
+      ownAttackModifier: 1.35,
+      opponentAttackModifier: 1.25
+    },
+    normal: {
+      ownAttackModifier: 1,
+      opponentAttackModifier: 1
+    },
+    defensive: {
+      ownAttackModifier: 0.75,
+      opponentAttackModifier: 0.65
+    }
+  }[tactic] ?? getTacticGoalModifiers("normal");
+}
+
+export function getFormationPositions(teamSide, tactic = "normal", formation = DEFAULT_FORMATION) {
+  const positions = getBaseFormationPositions(teamSide, formation);
+  const playerRoles = createRoleList(formation);
   const direction = getAttackingDirection(teamSide);
   const settings = tacticSettings(tactic);
 
-  return formation.map((position, index) => {
-    if (roles[index] === "goalkeeper") {
+  return positions.map((position, index) => {
+    if (playerRoles[index] === "goalkeeper") {
       return position;
     }
 
@@ -325,8 +409,8 @@ function getPhaseFreedom(phaseType, isAttacking) {
   return isAttacking ? freedom : freedom * 0.72;
 }
 
-function createBrokenTarget(target, index, phaseType, isAttacking, teamSide, laneX, settings) {
-  if (roles[index] === "goalkeeper") {
+function createBrokenTarget(target, index, role, phaseType, isAttacking, teamSide, laneX, settings) {
+  if (role === "goalkeeper") {
     return target;
   }
 
@@ -353,21 +437,21 @@ function createBrokenTarget(target, index, phaseType, isAttacking, teamSide, lan
   };
 }
 
-function getAttackingTargets(teamSide, phase, tactic) {
+function getAttackingTargets(teamSide, phase, tactic, players) {
   const settings = tacticSettings(tactic);
-  const formation = getFormationPositions(teamSide, tactic);
+  const formation = getFormationPositions(teamSide, tactic, players[0]?.formation);
   const laneX = lanes[phase.lane] ?? lanes.center;
 
   if (phase.type === "pressure") {
-    return getPressureTargets(teamSide, true, laneX, settings);
+    return getPressureTargets(teamSide, true, laneX, settings, players);
   }
 
   if (phase.type === "counter") {
-    return getCounterTargets(teamSide, true, laneX, settings);
+    return getCounterTargets(teamSide, true, laneX, settings, players);
   }
 
   return formation.map((base, index) => {
-    const role = roles[index];
+    const role = getPlayerRole(players, index);
     if (role === "goalkeeper") {
       return getGoalkeeperTarget(teamSide, laneX);
     }
@@ -378,23 +462,23 @@ function getAttackingTargets(teamSide, phase, tactic) {
     return createBrokenTarget({
       x: clamp(targetX, pitchBounds.minX, pitchBounds.maxX),
       y: clamp(attackY(teamSide, depth), pitchBounds.minY, pitchBounds.maxY)
-    }, index, phase.type, true, teamSide, laneX, settings);
+    }, index, role, phase.type, true, teamSide, laneX, settings);
   });
 }
 
-function getDefendingTargets(teamSide, phase, tactic) {
+function getDefendingTargets(teamSide, phase, tactic, players) {
   const settings = tacticSettings(tactic);
-  const formation = getFormationPositions(teamSide, tactic);
+  const formation = getFormationPositions(teamSide, tactic, players[0]?.formation);
   const laneX = lanes[phase.lane] ?? lanes.center;
   const ownBox = getDefensivePenaltyArea(teamSide);
   const deepLine = teamSide === "home" ? 0.78 : 0.22;
 
   if (phase.type === "counter") {
-    return getCounterTargets(teamSide, false, laneX, settings);
+    return getCounterTargets(teamSide, false, laneX, settings, players);
   }
 
   return formation.map((base, index) => {
-    const role = roles[index];
+    const role = getPlayerRole(players, index);
     if (role === "goalkeeper") {
       return getGoalkeeperTarget(teamSide, laneX);
     }
@@ -412,7 +496,7 @@ function getDefendingTargets(teamSide, phase, tactic) {
     return createBrokenTarget({
       x: clamp(compactX, pitchBounds.minX, pitchBounds.maxX),
       y: clamp(pressureY, pitchBounds.minY, pitchBounds.maxY)
-    }, index, phase.type, false, teamSide, laneX, settings);
+    }, index, role, phase.type, false, teamSide, laneX, settings);
   });
 }
 
@@ -424,7 +508,7 @@ function getGoalkeeperTarget(teamSide, laneX) {
   };
 }
 
-function getPressureTargets(teamSide, isAttacking, laneX, settings) {
+function getPressureTargets(teamSide, isAttacking, laneX, settings, players) {
   const opponentBox = getOpponentPenaltyArea(teamSide);
   const ownBox = getDefensivePenaltyArea(teamSide);
   const attackingY = opponentBox.centerY;
@@ -456,7 +540,8 @@ function getPressureTargets(teamSide, isAttacking, laneX, settings) {
     { x: 0.18, y: 0.04 }
   ];
 
-  return roles.map((role, index) => {
+  return players.map((player, index) => {
+    const role = player.role;
     if (role === "goalkeeper") {
       return getGoalkeeperTarget(teamSide, laneX);
     }
@@ -468,7 +553,7 @@ function getPressureTargets(teamSide, isAttacking, laneX, settings) {
       return createBrokenTarget({
         x: clamp(lerp(opponentBox.centerX + point.x, laneX, 0.22), pitchBounds.minX, pitchBounds.maxX),
         y: clamp(targetY, pitchBounds.minY, pitchBounds.maxY)
-      }, index, "pressure", true, teamSide, laneX, settings);
+      }, index, role, "pressure", true, teamSide, laneX, settings);
     }
 
     const baseX = 0.5 + (defensiveCluster[index]?.x ?? 0) * 0.82;
@@ -476,14 +561,14 @@ function getPressureTargets(teamSide, isAttacking, laneX, settings) {
     return createBrokenTarget({
       x: clamp(lerp(baseX, laneX, 0.18), pitchBounds.minX, pitchBounds.maxX),
       y: clamp(defendingY + ((defensiveCluster[index]?.y ?? 0.1) * yDirection * 0.55), pitchBounds.minY, pitchBounds.maxY)
-    }, index, "pressure", false, teamSide, laneX, settings);
+    }, index, role, "pressure", false, teamSide, laneX, settings);
   });
 }
 
-function getCounterTargets(teamSide, isAttacking, laneX, settings) {
-  const formation = getFormationPositions(teamSide, "normal");
+function getCounterTargets(teamSide, isAttacking, laneX, settings, players) {
+  const formation = getFormationPositions(teamSide, "normal", players[0]?.formation);
   return formation.map((base, index) => {
-    const role = roles[index];
+    const role = getPlayerRole(players, index);
     if (role === "goalkeeper") {
       return getGoalkeeperTarget(teamSide, laneX);
     }
@@ -497,21 +582,27 @@ function getCounterTargets(teamSide, isAttacking, laneX, settings) {
       return createBrokenTarget({
         x: clamp(lerp(base.x, laneX, role === "forward" ? 0.55 : 0.3), pitchBounds.minX, pitchBounds.maxX),
         y: clamp(attackY(teamSide, depth), pitchBounds.minY, pitchBounds.maxY)
-      }, index, "counter", true, teamSide, laneX, settings);
+      }, index, role, "counter", true, teamSide, laneX, settings);
     }
 
     const recoveryY = teamSide === "home" ? 0.7 : 0.3;
     return createBrokenTarget({
       x: clamp(lerp(base.x, laneX, 0.2), pitchBounds.minX, pitchBounds.maxX),
       y: clamp(lerp(base.y, recoveryY, 0.65), pitchBounds.minY, pitchBounds.maxY)
-    }, index, "counter", false, teamSide, laneX, settings);
+    }, index, role, "counter", false, teamSide, laneX, settings);
   });
 }
 
-export function getPhaseTargetPositions(phase, attackingTeam, defendingTeam, tactic = "normal") {
-  const attackingTargets = getAttackingTargets(attackingTeam, phase, tactic);
-  const defendingTargets = getDefendingTargets(defendingTeam, phase, tactic);
-  const ballTarget = getBallTarget(phase, attackingTeam, attackingTargets);
+export function getPhaseTargetPositions(phase, attackingTeam, defendingTeam, tactic = "normal", playersByTeam = null) {
+  const players = playersByTeam ?? {
+    home: createPlayers("home", DEFAULT_FORMATION),
+    away: createPlayers("away", AWAY_DEFAULT_FORMATION)
+  };
+  const attackingPlayers = players[attackingTeam];
+  const defendingPlayers = players[defendingTeam];
+  const attackingTargets = getAttackingTargets(attackingTeam, phase, tactic, attackingPlayers);
+  const defendingTargets = getDefendingTargets(defendingTeam, phase, tactic, defendingPlayers);
+  const ballTarget = getBallTarget(phase, attackingTeam, attackingTargets, attackingPlayers);
 
   return {
     home: attackingTeam === "home" ? attackingTargets : defendingTargets,
@@ -520,19 +611,10 @@ export function getPhaseTargetPositions(phase, attackingTeam, defendingTeam, tac
   };
 }
 
-function getBallTarget(phase, attackingTeam, attackingTargets) {
+function getBallTarget(phase, attackingTeam, attackingTargets, attackingPlayers) {
   const laneX = lanes[phase.lane] ?? lanes.center;
-  const roleIndexByPhase = {
-    shape: 6,
-    buildUp: 5,
-    wideAttack: phase.lane === "left" ? 8 : 10,
-    centralAttack: 9,
-    pressure: 9,
-    counter: 8,
-    reset: 6
-  };
-  const carrierIndex = roleIndexByPhase[phase.type] ?? 6;
-  const carrier = attackingTargets[carrierIndex] ?? attackingTargets[6];
+  const carrierIndex = getPreferredCarrierIndex(attackingPlayers, phase);
+  const carrier = attackingTargets[carrierIndex] ?? attackingTargets[0];
   const opponentBox = getOpponentPenaltyArea(attackingTeam);
 
   if (phase.type === "pressure") {
@@ -681,7 +763,7 @@ function advanceGoalPlan(team, opponent, match, eventMinute) {
     lane: match.goalPlan.lane,
     stepsRemaining: stage.stepsRemaining
   };
-  const targets = getPhaseTargetPositions(phase, scoringTeam, defendingTeam, match.tactic);
+  const targets = getPhaseTargetPositions(phase, scoringTeam, defendingTeam, match.tactic, match.players);
   const opponentBox = getOpponentPenaltyArea(scoringTeam);
 
   if (stage.shot) {
@@ -722,8 +804,8 @@ function runResetShape(match) {
     lane: "center"
   };
   const targets = {
-    home: getFormationPositions("home", match.tactic),
-    away: getFormationPositions("away", match.tactic),
+    home: getFormationPositions("home", match.tactic, match.formations.home),
+    away: getFormationPositions("away", match.tactic, match.formations.away),
     ball: { x: 0.5, y: 0.5 }
   };
   applyTargets(match, targets, 0.2);
@@ -742,17 +824,17 @@ function maybePrepareGoal(team, opponent, match, homePhase, deltaMinutes) {
   const ownStrength = calculateTeamStrength(team);
   const opponentStrength = opponent.averageStrength;
   const strengthDiff = ownStrength - opponentStrength;
-  const settings = tacticSettings(match.tactic);
+  const modifiers = getTacticGoalModifiers(match.tactic);
   const homeGoalChance = clamp(
     matchConfig.baseGoalChancePerMinute + strengthDiff * matchConfig.strengthFactor,
     matchConfig.minGoalChancePerMinute,
     matchConfig.maxGoalChancePerMinute
-  ) * settings.goalBias;
+  ) * modifiers.ownAttackModifier;
   const awayGoalChance = clamp(
     matchConfig.baseGoalChancePerMinute - strengthDiff * matchConfig.strengthFactor,
     matchConfig.minGoalChancePerMinute,
     matchConfig.maxGoalChancePerMinute
-  );
+  ) * modifiers.opponentAttackModifier;
   const activeChance = (homePhase ? homeGoalChance : awayGoalChance) * deltaMinutes;
 
   if (Math.random() < activeChance) {
@@ -791,7 +873,7 @@ export function simulateStep(team, opponent, match, deltaMinutes) {
 
   const attackingTeam = match.phase.attackingTeam;
   const defendingTeam = mirrorTeam(attackingTeam);
-  const targets = getPhaseTargetPositions(match.phase, attackingTeam, defendingTeam, match.tactic);
+  const targets = getPhaseTargetPositions(match.phase, attackingTeam, defendingTeam, match.tactic, match.players);
   const phaseSpeed = match.phase.type === "counter" ? 0.26 : match.phase.type === "pressure" ? 0.23 : 0.18;
 
   applyTargets(match, targets, phaseSpeed);
@@ -808,7 +890,7 @@ export function simulateMinute(team, opponent, match) {
 
 export function getResultSummary(match) {
   if (match.homeGoals > match.awayGoals) {
-    return { label: "Sieg", headline: "Großer Sieg!", tone: "win" };
+    return { label: "Sieg", headline: "Sieg!", tone: "win" };
   }
   if (match.homeGoals < match.awayGoals) {
     return { label: "Niederlage", headline: "Niederlage", tone: "loss" };
