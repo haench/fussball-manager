@@ -71,6 +71,15 @@ input:focus-visible {
   background: #7f1d1d;
 }
 
+.ghost-button {
+  background: #dbe9d8;
+  color: #172312;
+}
+
+.ghost-button:hover {
+  background: #cddfc9;
+}
+
 .app-shell {
   margin: 0 auto;
   max-width: 1120px;
@@ -132,6 +141,13 @@ h2 {
   margin-bottom: 1.5rem;
 }
 
+.section-heading-with-action {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
 .league-tabs,
 .main-nav {
   display: flex;
@@ -153,6 +169,12 @@ h2 {
 
 .content-card {
   scroll-margin-top: 6rem;
+}
+
+.content-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 1.5rem;
 }
 
 .league-tabs button,
@@ -197,6 +219,10 @@ h2 {
 .manager-layout {
   display: grid;
   gap: 1.25rem;
+}
+
+.manager-layout-dashboard .content-card {
+  padding: 0;
 }
 
 .manager-header {
@@ -1645,6 +1671,11 @@ select {
 @media (max-width: 820px) {
   .manager-layout {
     padding: 0;
+  }
+
+  .section-heading-with-action {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .manager-header,

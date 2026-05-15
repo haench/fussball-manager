@@ -1,10 +1,11 @@
 import {
   assignLineupPlayer,
+  autoPlanTraining,
   clubs,
   gameState,
-  leagues,
   getDataModeSummary,
   importPrivateRealData,
+  leagues,
   resetGameProgress,
   resetToFantasyData,
   resetTransferFilters,
@@ -12,12 +13,11 @@ import {
   setBestLineup,
   simulateCurrentMatchday,
   simulateRemainingMatches,
-  submitTransferOffer,
   startNewGame,
-  autoPlanTraining,
-  updateTransferFilter,
-  updateTrainingFocus,
+  submitTransferOffer,
   updateLineupFormation,
+  updateTrainingFocus,
+  updateTransferFilter,
   updateUserTactics,
   upgradeClubFacility,
   watchUserMatchLive,
@@ -34,19 +34,20 @@ import {
 import { formatBudget } from './utils/format.js';
 import { renderDashboard } from './views/Dashboard.js';
 import { renderLineup } from './views/LineupView.js';
+import { renderLongTerm } from './views/LongTerm.js';
 import { renderMatchday } from './views/Matchday.js';
+import { renderSeasonEnd } from './views/SeasonEnd.js';
 import { renderSquad } from './views/Squad.js';
 import { renderTable } from './views/TableView.js';
 import { renderTraining } from './views/Training.js';
 import { renderTransfers } from './views/Transfers.js';
-import { renderLongTerm } from './views/LongTerm.js';
-import { renderSeasonEnd } from './views/SeasonEnd.js';
 import { isFinalMatchdayComplete } from './game/seasonEnd.js';
 
 const navigationItems = ['Dashboard', 'Kader', 'Aufstellung', 'Training', 'Spieltag', 'Tabelle', 'Transfers', 'Verein', 'Saisonabschluss'];
 
 let selectedLeague = 'Bundesliga';
 let activeView = 'Dashboard';
+let startScreenStep = 'intro';
 let rootElement;
 let dataImportFeedback = '';
 
@@ -101,6 +102,7 @@ function renderDataModeNotice() {
 }
 
 function renderStartScreen() {
+  const showClubSelection = startScreenStep === 'club-selection';
   const leagueTabs = leagues
     .map(
       (league) => `
@@ -119,20 +121,25 @@ function renderStartScreen() {
         <p>
           Starte deine Karriere, wähle einen Verein aus Bundesliga oder 2. Bundesliga und führe ihn durch die Saison.
         </p>
-        <a class="primary-button" href="#club-selection">Neues Spiel</a>
+        <button class="primary-button" data-start-step="club-selection" type="button">Neues Spiel</button>
       </section>
 
       ${renderDataModeNotice()}
 
-      <section id="club-selection" class="club-selection">
-        <div class="section-heading">
-          <p class="eyebrow">Vereinsauswahl</p>
-          <h2>Wähle deinen Club</h2>
-        </div>
+      ${showClubSelection ? `
+        <section id="club-selection" class="club-selection">
+          <div class="section-heading section-heading-with-action">
+            <div>
+              <p class="eyebrow">Vereinsauswahl</p>
+              <h2>Wähle deinen Club</h2>
+            </div>
+            <button class="ghost-button" data-start-step="intro" type="button">Zurück</button>
+          </div>
 
-        <div class="league-tabs" role="tablist" aria-label="Liga wählen">${leagueTabs}</div>
-        <div class="club-grid">${renderClubCards()}</div>
-      </section>
+          <div class="league-tabs" role="tablist" aria-label="Liga wählen">${leagueTabs}</div>
+          <div class="club-grid">${renderClubCards()}</div>
+        </section>
+      ` : ''}
     </main>
   `;
 }
@@ -162,34 +169,22 @@ function renderActiveView() {
 }
 
 function renderManagerLayout() {
-  const navButtons = navigationItems
-    .map(
-      (item) => `
-        <button class="${item === activeView ? 'active' : ''}" data-view="${item}" ${item === activeView ? 'aria-current="page"' : ''} type="button">
-          ${item}
-        </button>
-      `,
-    )
-    .join('');
+  const managerLayoutClass = activeView === 'Dashboard' ? 'manager-layout manager-layout-dashboard' : 'manager-layout';
+  const contentToolbar = activeView === 'Dashboard'
+    ? ''
+    : `
+      <div class="content-toolbar">
+        <button class="ghost-button" data-view="Dashboard" type="button">Zur Zentrale</button>
+      </div>
+    `;
 
   return `
-    <main class="app-shell manager-layout">
+    <main class="app-shell ${managerLayoutClass}">
       <a class="skip-link" href="#main-content">Zum Inhalt springen</a>
-      <header class="manager-header">
-        <div>
-          <p class="eyebrow">${gameState.currentLeague}</p>
-          <h1>${gameState.selectedClub.name}</h1>
-        </div>
-        <div class="header-meta">
-          <span>${getDataModeSummary().isRealImport ? 'realImport privat' : 'fantasy'}</span>
-          <span>${isFinalMatchdayComplete(gameState) ? 'Saison beendet' : `Spieltag ${gameState.currentMatchday}`}</span>
-          <strong>Transfer ${formatBudget(gameState.transferBudget)}</strong>
-          <span>Gehalt ${formatBudget(gameState.currentWageSum)} / ${formatBudget(gameState.wageBudget)}</span>
-        </div>
-      </header>
-
-      <nav class="main-nav" aria-label="Hauptnavigation">${navButtons}</nav>
-      <section class="content-card" id="main-content" tabindex="-1">${renderActiveView()}</section>
+      <section class="content-card" id="main-content" tabindex="-1">
+        ${contentToolbar}
+        ${renderActiveView()}
+      </section>
     </main>
   `;
 }
@@ -210,6 +205,7 @@ function deleteProgressAndRender({ view = 'Dashboard' } = {}) {
   deleteSavedGame();
   deleteActiveView();
   activeView = view;
+  startScreenStep = 'intro';
   renderApp();
 }
 
@@ -227,7 +223,9 @@ function attachEventHandlers() {
     field.addEventListener('change', () => {
       const file = field.files?.[0];
 
-      if (!file) return;
+      if (!file) {
+        return;
+      }
 
       const reader = new FileReader();
       reader.addEventListener('load', () => {
@@ -239,6 +237,8 @@ function attachEventHandlers() {
           dataImportFeedback = 'Import erfolgreich. Die Auswahl wurde auf deine privaten Daten umgestellt.';
           progressWasReset = true;
           deleteProgressAndRender();
+          startScreenStep = 'club-selection';
+          renderApp();
         } catch (error) {
           dataImportFeedback = `Import fehlgeschlagen: ${error.message}`;
         }
@@ -248,6 +248,13 @@ function attachEventHandlers() {
         }
       });
       reader.readAsText(file);
+    });
+  });
+
+  rootElement.querySelectorAll('[data-start-step]').forEach((button) => {
+    button.addEventListener('click', () => {
+      startScreenStep = button.dataset.startStep;
+      renderApp();
     });
   });
 
@@ -264,6 +271,7 @@ function attachEventHandlers() {
 
       if (club && confirmSaveOverwrite()) {
         startNewGame(club);
+        startScreenStep = 'intro';
         commitStateAndRender({ view: 'Dashboard' });
       }
     });
@@ -323,7 +331,6 @@ function attachEventHandlers() {
       commitStateAndRender({ view: isFinalMatchdayComplete(gameState) ? 'Saisonabschluss' : 'Spieltag' });
     });
   });
-
 
   rootElement.querySelectorAll('[data-season-action]').forEach((button) => {
     button.addEventListener('click', () => {
@@ -427,5 +434,6 @@ export function mountApp(element) {
     activeView = navigationItems.includes(restoredView) ? restoredView : activeView;
   }
 
+  startScreenStep = 'intro';
   renderApp();
 }
