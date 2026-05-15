@@ -1,5 +1,5 @@
 import { matchConfig } from "./config.js";
-import { gameState, saveCurrentGame, setMatch, setScreen, setState, updateMatch } from "./state.js";
+import { gameState, isLineupValid, saveCurrentGame, setMatch, setScreen, setState, updateMatch } from "./state.js";
 import { createInitialMatchState, getResultSummary, simulateStep } from "./matchSimulation.js";
 
 let activeLoopId = null;
@@ -10,6 +10,10 @@ const renderLoopIntervalMs = 33;
 
 export function startMatch() {
   if (activeLoopId || gameState.match?.status === "playing") {
+    return;
+  }
+
+  if (!isLineupValid(gameState.team)) {
     return;
   }
 
