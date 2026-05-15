@@ -1,0 +1,412 @@
+import { uiCopy } from "./config.js";
+import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
+import { continueGame, createNewGame, gameState, subscribe } from "./state.js";
+import { calculateTeamStrength } from "./matchSimulation.js";
+import goalSplashImage from "../assets/Tor.png";
+
+const app = document.getElementById("app");
+const tacticButtons = [
+  { id: "aggressive", label: "Aggressiv", testId: "tactic-aggressive" },
+  { id: "normal", label: "Normal", testId: "tactic-normal" },
+  { id: "defensive", label: "Defensiv", testId: "tactic-defensive" }
+];
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat("de-DE").format(value) + " €";
+}
+
+function formatStrength(value) {
+  return Math.round(value);
+}
+
+function createTileMarkup(label) {
+  return `
+    <div class="hub-tile is-disabled">
+      <div class="hub-tile__icon">${label.slice(0, 1)}</div>
+      <div class="hub-tile__label">${label}</div>
+    </div>
+  `;
+}
+
+function renderRecentMatchBadge(entry, index) {
+  if (!entry) {
+    return `<div class="recent-match recent-match--empty" aria-label="Noch kein Spiel ${index + 1}">-</div>`;
+  }
+
+  const resultClass = {
+    S: "recent-match--win",
+    N: "recent-match--loss",
+    U: "recent-match--draw"
+  }[entry.result];
+  const resultLabel = {
+    S: "Sieg",
+    N: "Niederlage",
+    U: "Unentschieden"
+  }[entry.result];
+
+  return `
+    <div
+      class="recent-match ${resultClass}"
+      title="${resultLabel} gegen ${entry.opponentName}: ${entry.homeGoals}-${entry.awayGoals}"
+      aria-label="${resultLabel} gegen ${entry.opponentName}: ${entry.homeGoals}-${entry.awayGoals}"
+    >
+      ${entry.result}
+    </div>
+  `;
+}
+
+function renderRecentMatches(matchHistory = []) {
+  const recentMatches = Array.from({ length: 5 }, (_, index) => matchHistory[index] ?? null);
+
+  return `
+    <section class="recent-matches glossy-panel" data-testid="recent-matches">
+      <div class="recent-matches__title">
+        <span></span>
+        <strong>Letzte Spiele</strong>
+        <span></span>
+      </div>
+      <div class="recent-matches__list">
+        ${recentMatches.map(renderRecentMatchBadge).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderStartScreen() {
+  return `
+    <section class="screen screen--start">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell" data-testid="start-screen">
+        <div class="hero-badge">
+          <div class="hero-badge__ball">FM</div>
+          <div class="hero-badge__title">FUSSBALL</div>
+          <div class="hero-badge__subtitle">MANAGER</div>
+        </div>
+        <div class="hero-copy">
+          <h1>Der erste Club wartet auf dich.</h1>
+          <p>${uiCopy.clubTagline}</p>
+        </div>
+        <div class="cta-stack">
+          <button class="action-button action-button--green" data-action="start-new" data-testid="start-game-button">Spiel starten</button>
+          <button class="action-button action-button--blue" data-action="show-club" data-testid="club-screen-button">Fortfahren</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderClubScreen(state) {
+  const ownStrength = formatStrength(calculateTeamStrength(state.team));
+  const opponentStrength = formatStrength(state.opponent.averageStrength);
+
+  return `
+    <section class="screen screen--club">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell" data-testid="club-screen">
+        <header class="club-header glossy-panel">
+          <div class="club-header__crest">FFC</div>
+          <div>
+            <div class="eyebrow">Vereinszentrale</div>
+            <h1>${state.clubName}</h1>
+            <p>Manager: ${state.managerName}</p>
+          </div>
+        </header>
+
+        <div class="stats-grid">
+          <article class="stat-card glossy-panel">
+            <span class="stat-card__label">Spieltag</span>
+            <strong>${state.currentDay}</strong>
+          </article>
+          <article class="stat-card glossy-panel stat-card--money">
+            <span class="stat-card__label">Kontostand</span>
+            <strong>${formatCurrency(state.money)}</strong>
+          </article>
+        </div>
+
+        <div class="hub-grid">
+          ${uiCopy.inactiveTiles.map(createTileMarkup).join("")}
+        </div>
+
+        ${renderRecentMatches(state.matchHistory)}
+
+        <section class="next-match glossy-panel">
+          <div class="eyebrow">Nächstes Spiel</div>
+          <div class="fixture">
+            <div class="fixture__team">
+              <span class="fixture__crest">FFC</span>
+              <div class="fixture__details">
+                <span class="fixture__name">${state.clubName}</span>
+                <span class="fixture__strength">Stärke: ${ownStrength}</span>
+              </div>
+            </div>
+            <div class="fixture__separator">-</div>
+            <div class="fixture__team">
+              <span class="fixture__crest fixture__crest--away">SVN</span>
+              <div class="fixture__details">
+                <span class="fixture__name">${state.opponent.name}</span>
+                <span class="fixture__strength">Stärke: ${opponentStrength}</span>
+              </div>
+            </div>
+          </div>
+          <button class="action-button action-button--green next-match__button" data-action="next-match" data-testid="next-match-button">Nächstes Spiel</button>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderMatchMarkers(markers, teamClass, teamName) {
+  return markers
+    .map((marker, index) => {
+      return `
+        <div
+          class="player-marker ${teamClass} ${index === 0 ? "player-marker--goalkeeper" : ""}"
+          data-team="${teamName}"
+          data-player-index="${index}"
+          style="left:${toPercent(marker.x)}; top:${toPercent(marker.y)};"
+        ></div>
+      `;
+    })
+    .join("");
+}
+
+function toPercent(value) {
+  return `${value * 100}%`;
+}
+
+function renderGoalSplash(match) {
+  if (!match.goalSplash) {
+    return "";
+  }
+
+  return `
+    <div class="goal-splash" data-testid="goal-splash" data-team-name="${match.goalSplash.teamName}">
+      <img class="goal-splash__image" src="${goalSplashImage}" alt="Tor!" />
+      <div class="goal-splash__team">Tor für ${match.goalSplash.teamName}</div>
+    </div>
+  `;
+}
+
+function renderTacticButtons(activeTactic) {
+  return tacticButtons
+    .map((button) => `
+      <button
+        class="tactic-button ${activeTactic === button.id ? "tactic-button--active" : ""}"
+        data-action="set-tactic"
+        data-tactic="${button.id}"
+        data-testid="${button.testId}"
+        aria-pressed="${activeTactic === button.id}"
+      >
+        ${button.label}
+      </button>
+    `)
+    .join("");
+}
+
+function renderMatchScreen(state) {
+  const match = state.match;
+  if (!match) {
+    return "";
+  }
+
+  return `
+    <section class="screen screen--match">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--wide" data-testid="match-screen">
+        <header class="scoreboard glossy-panel" data-testid="scoreboard">
+          <div class="scoreboard__team">
+            <span class="scoreboard__crest">FFC</span>
+            <span>${state.clubName}</span>
+          </div>
+          <div class="scoreboard__score" data-testid="score-value">${match.homeGoals} - ${match.awayGoals}</div>
+          <div class="scoreboard__team scoreboard__team--right">
+            <span>${state.opponent.name}</span>
+            <span class="scoreboard__crest scoreboard__crest--away">SVN</span>
+          </div>
+          <div class="scoreboard__minute" data-testid="minute-value">${match.displayMinute}'</div>
+        </header>
+
+        <section class="ticker-stack" data-testid="ticker-stack">
+          ${match.tickerEvents.length
+            ? match.tickerEvents.map((event) => `<article class="ticker-row glossy-panel">${event}</article>`).join("")
+            : `<article class="ticker-row ticker-row--empty glossy-panel">Noch keine Tore</article>`}
+        </section>
+
+        <section class="pitch glossy-panel" data-testid="pitch">
+          <div class="pitch__frame">
+            <div class="pitch__line pitch__line--half"></div>
+            <div class="pitch__circle"></div>
+            <div class="pitch__box pitch__box--top"></div>
+            <div class="pitch__box pitch__box--bottom"></div>
+            <div class="pitch__goal pitch__goal--top"></div>
+            <div class="pitch__goal pitch__goal--bottom"></div>
+            ${renderMatchMarkers(match.positions.away, "player-marker--away", "away")}
+            ${renderMatchMarkers(match.positions.home, "player-marker--home", "home")}
+            <div class="ball-marker" data-testid="ball-marker" style="left:${toPercent(match.positions.ball.x)}; top:${toPercent(match.positions.ball.y)};"></div>
+            ${renderGoalSplash(match)}
+          </div>
+        </section>
+
+        <footer class="tactic-bar">
+          ${renderTacticButtons(match.tactic)}
+        </footer>
+      </div>
+    </section>
+  `;
+}
+
+function renderScorerList(match, state) {
+  if (!match.scorers.length) {
+    return `<p class="result-card__scorers">Keine Tore in diesem Spiel.</p>`;
+  }
+
+  const names = state.team.players.filter((player) => player.isStarter).map((player) => player.name);
+  return `
+    <ul class="result-card__scorers">
+      ${match.scorers
+        .slice(0, 3)
+        .map((entry, index) => {
+          const scorerName = entry.team === "home"
+            ? names[index % names.length]
+            : `${state.opponent.name} ${index + 1}`;
+          return `<li>${entry.minute}' ${scorerName}</li>`;
+        })
+        .join("")}
+    </ul>
+  `;
+}
+
+function renderResultScreen(state) {
+  const match = state.match;
+  if (!match?.result) {
+    return "";
+  }
+
+  return `
+    <section class="screen screen--result screen--result-${match.result.tone}">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell" data-testid="result-screen">
+        <div class="result-hero" data-testid="result-hero">
+          <div class="eyebrow">Spiel Ende</div>
+          <h1>${match.result.headline}</h1>
+          <p>${match.result.label}</p>
+        </div>
+
+        <section class="result-card glossy-panel">
+          <div class="result-card__teams">
+            <div>${state.clubName}</div>
+            <div>${state.opponent.name}</div>
+          </div>
+          <div class="result-card__score" data-testid="result-score">${match.homeGoals} - ${match.awayGoals}</div>
+          ${renderScorerList(match, state)}
+          <div class="result-stats">
+            <div class="result-stat">
+              <span>Ballbesitz</span>
+              <strong>${match.stats.homePossession}% - ${match.stats.awayPossession}%</strong>
+            </div>
+            <div class="result-stat">
+              <span>Torschüsse</span>
+              <strong>${match.stats.homeShots} - ${match.stats.awayShots}</strong>
+            </div>
+            <div class="result-stat">
+              <span>Schüsse aufs Tor</span>
+              <strong>${match.stats.homeShotsOnTarget} - ${match.stats.awayShotsOnTarget}</strong>
+            </div>
+          </div>
+        </section>
+
+        <button class="action-button action-button--green" data-action="continue" data-testid="continue-button">Weiter</button>
+      </div>
+    </section>
+  `;
+}
+
+function render() {
+  if (gameState.currentScreen === "match" && app.querySelector('[data-testid="match-screen"]')) {
+    updateMatchScreen(gameState);
+    return;
+  }
+
+  let markup = "";
+  if (gameState.currentScreen === "start") {
+    markup = renderStartScreen();
+  } else if (gameState.currentScreen === "club") {
+    markup = renderClubScreen(gameState);
+  } else if (gameState.currentScreen === "match") {
+    markup = renderMatchScreen(gameState);
+  } else if (gameState.currentScreen === "result") {
+    markup = renderResultScreen(gameState);
+  }
+
+  app.innerHTML = markup;
+  bindEvents();
+}
+
+function updateMatchScreen(state) {
+  const match = state.match;
+  if (!match) {
+    return;
+  }
+
+  app.querySelector('[data-testid="score-value"]').textContent = `${match.homeGoals} - ${match.awayGoals}`;
+  app.querySelector('[data-testid="minute-value"]').textContent = `${match.displayMinute}'`;
+
+  const tickerStack = app.querySelector('[data-testid="ticker-stack"]');
+  tickerStack.innerHTML = match.tickerEvents.length
+    ? match.tickerEvents.map((event) => `<article class="ticker-row glossy-panel">${event}</article>`).join("")
+    : `<article class="ticker-row ticker-row--empty glossy-panel">Noch keine Tore</article>`;
+
+  updateMarkers("home", match.positions.home);
+  updateMarkers("away", match.positions.away);
+  updateTacticButtons(match.tactic);
+
+  const ballMarker = app.querySelector('[data-testid="ball-marker"]');
+  ballMarker.style.left = toPercent(match.positions.ball.x);
+  ballMarker.style.top = toPercent(match.positions.ball.y);
+
+  const pitchFrame = app.querySelector(".pitch__frame");
+  const goalSplash = app.querySelector('[data-testid="goal-splash"]');
+  const nextGoalSplashMarkup = renderGoalSplash(match);
+
+  if (match.goalSplash && !goalSplash) {
+    pitchFrame.insertAdjacentHTML("beforeend", nextGoalSplashMarkup);
+  } else if (match.goalSplash && goalSplash.dataset.teamName !== match.goalSplash.teamName) {
+    goalSplash.outerHTML = nextGoalSplashMarkup;
+  } else if (!match.goalSplash && goalSplash) {
+    goalSplash.remove();
+  }
+}
+
+function updateMarkers(teamName, positions) {
+  positions.forEach((position, index) => {
+    const marker = app.querySelector(`[data-team="${teamName}"][data-player-index="${index}"]`);
+    marker.style.left = toPercent(position.x);
+    marker.style.top = toPercent(position.y);
+  });
+}
+
+function updateTacticButtons(activeTactic) {
+  tacticButtons.forEach((button) => {
+    const element = app.querySelector(`[data-testid="${button.testId}"]`);
+    if (!element) {
+      return;
+    }
+
+    const isActive = button.id === activeTactic;
+    element.classList.toggle("tactic-button--active", isActive);
+    element.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function bindEvents() {
+  document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame());
+  document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame());
+  document.querySelector('[data-action="next-match"]')?.addEventListener("click", () => startMatch());
+  document.querySelector('[data-action="continue"]')?.addEventListener("click", () => continueAfterMatch());
+  document.querySelectorAll('[data-action="set-tactic"]').forEach((button) => {
+    button.addEventListener("click", () => setTactic(button.dataset.tactic));
+  });
+}
+
+subscribe(render);
+render();

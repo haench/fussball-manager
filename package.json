@@ -1,0 +1,16 @@
+{
+  "name": "fussball-manager",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "smoke": "node --input-type=module -e \"import { gameState } from './src/state.js'; import { createInitialMatchState, simulateMinute } from './src/matchSimulation.js'; const match = createInitialMatchState(gameState.team, gameState.opponent); for (let i = 0; i < 5; i += 1) simulateMinute(gameState.team, gameState.opponent, match); console.log(JSON.stringify({ minute: match.minute, score: [match.homeGoals, match.awayGoals] }));\""
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}
