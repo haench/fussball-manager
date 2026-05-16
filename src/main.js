@@ -2,23 +2,36 @@ import { uiCopy } from "./config.js";
 import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
 import {
   autoPickBestEleven,
+  calculateAttendanceAndRevenue,
+  changeStandUpgradeTarget,
+  changeTrainingUpgradeTarget,
   continueGame,
   createNewGame,
   gameState,
-  getLineupPositionCounts,
   getStarterCount,
+  getStadiumCapacity,
+  getStandUpgradeCost,
+  getStandUpgradeDuration,
+  getStandUpgradeTarget,
+  getTrainingUpgradeCost,
+  getTrainingUpgradeDuration,
+  getTrainingUpgradeTargetLevel,
   isLineupValid,
   positionLabels,
-  positionOrder,
-  positionShortLabels,
   setFormation,
   setPlayerStarter,
   setScreen,
+  setTicketPriceLevel,
+  stadiumConfig,
+  startStandUpgrade,
+  startTrainingFacilityUpgrade,
   sortPlayersByPosition,
-  subscribe
+  subscribe,
+  trainingUpgradeConfig
 } from "./state.js";
 import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
+import logoImage from "../assets/logo.png";
 const goalSplashImage = "./assets/Tor.png";
 
 const app = document.getElementById("app");
@@ -27,6 +40,7 @@ const tacticButtons = [
   { id: "normal", label: "Normal", testId: "tactic-normal" },
   { id: "defensive", label: "Defensiv", testId: "tactic-defensive" }
 ];
+const seasonMatchDays = 34;
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("de-DE").format(value) + " €";
@@ -49,19 +63,36 @@ function formatShortPosition(position) {
   }[position] ?? position;
 }
 
-function renderLineupShape(team) {
-  const counts = getLineupPositionCounts(team);
-  return positionOrder
-    .map((position) => `${positionShortLabels[position]} ${counts[position]}`)
-    .join(" · ");
-}
-
-function createTileMarkup(label) {
+function createTileMarkup(label, state) {
   if (label === "Kader") {
+    const teamStrength = formatStrength(calculateTeamStrength(state.team));
     return `
       <button class="hub-tile hub-tile--primary" data-action="show-roster" data-testid="roster-tile">
         <div class="hub-tile__icon">K</div>
+        <div class="hub-tile__value">${teamStrength}</div>
         <div class="hub-tile__label">Kader</div>
+      </button>
+    `;
+  }
+
+  if (label === "Training") {
+    const trainingLevel = state.team.trainingFacility.level;
+    return `
+      <button class="hub-tile hub-tile--primary" data-action="show-training" data-testid="training-tile">
+        <div class="hub-tile__icon">T</div>
+        <div class="hub-tile__value">${trainingLevel}</div>
+        <div class="hub-tile__label">Training</div>
+      </button>
+    `;
+  }
+
+  if (label === "Stadion") {
+    const capacity = getStadiumCapacity(state.team);
+    return `
+      <button class="hub-tile hub-tile--primary" data-action="show-stadium" data-testid="stadium-tile">
+        <div class="hub-tile__icon">S</div>
+        <div class="hub-tile__value">${capacity}</div>
+        <div class="hub-tile__label">Stadion</div>
       </button>
     `;
   }
@@ -149,16 +180,27 @@ function renderRecentMatches(matchHistory = []) {
   `;
 }
 
+function renderTrainingMessages(messages = [], statusMessage = "") {
+  if (!messages.length && !statusMessage) {
+    return "";
+  }
+
+  return `
+    <section class="training-feed glossy-panel" data-testid="training-feed">
+      <div class="eyebrow">Training</div>
+      ${messages.length
+        ? `<ul>${messages.map((message) => `<li>${message}</li>`).join("")}</ul>`
+        : `<p>${statusMessage}</p>`}
+    </section>
+  `;
+}
+
 function renderStartScreen() {
   return `
     <section class="screen screen--start">
       <div class="screen__backdrop"></div>
       <div class="mobile-shell" data-testid="start-screen">
-        <div class="hero-badge">
-          <div class="hero-badge__ball">FM</div>
-          <div class="hero-badge__title">FUSSBALL</div>
-          <div class="hero-badge__subtitle">MANAGER</div>
-        </div>
+        <img class="hero-logo" src="${logoImage}" alt="Fussball Manager" />
         <div class="hero-copy">
           <h1>Der erste Club wartet auf dich.</h1>
           <p>${uiCopy.clubTagline}</p>
@@ -194,7 +236,7 @@ function renderClubScreen(state) {
         <div class="stats-grid">
           <article class="stat-card glossy-panel">
             <span class="stat-card__label">Spieltag</span>
-            <strong>${state.currentDay}</strong>
+            <strong>${state.currentDay}/${seasonMatchDays}</strong>
           </article>
           <article class="stat-card glossy-panel stat-card--money">
             <span class="stat-card__label">Kontostand</span>
@@ -203,10 +245,11 @@ function renderClubScreen(state) {
         </div>
 
         <div class="hub-grid">
-          ${uiCopy.inactiveTiles.map(createTileMarkup).join("")}
+          ${uiCopy.inactiveTiles.map((label) => createTileMarkup(label, state)).join("")}
         </div>
 
         ${renderRecentMatches(state.matchHistory)}
+        ${renderTrainingMessages(state.trainingMessages)}
 
         <section class="next-match glossy-panel">
           <div class="eyebrow">Nächstes Spiel</div>
@@ -248,6 +291,7 @@ function renderRosterPlayerRow(player) {
     <article class="roster-row ${player.isStarter ? "roster-row--starter" : ""}">
       <div class="roster-row__position" title="${formatPosition(player.position)}">${formatShortPosition(player.position)}</div>
       <div class="roster-row__name">${player.name}</div>
+      <div class="roster-row__age">${player.age}</div>
       <div class="roster-row__strength">${player.strength}</div>
       <div class="roster-row__status">${player.isStarter ? "Startelf" : "Bank"}</div>
       <button
@@ -273,6 +317,7 @@ function renderRosterGroup(title, players, emptyText) {
       <div class="roster-table__head">
         <span>Pos.</span>
         <span>Name</span>
+        <span>Alter</span>
         <span>Stärke</span>
         <span>Status</span>
         <span>Aktion</span>
@@ -287,7 +332,6 @@ function renderRosterGroup(title, players, emptyText) {
 function renderRosterScreen(state) {
   const starters = state.team.players.filter((player) => player.isStarter);
   const bench = state.team.players.filter((player) => !player.isStarter);
-  const starterCount = starters.length;
   const lineupWarning = getLineupWarning(state);
   const teamStrength = formatStrength(calculateTeamStrength(state.team));
 
@@ -295,29 +339,18 @@ function renderRosterScreen(state) {
     <section class="screen screen--club screen--roster">
       <div class="screen__backdrop"></div>
       <div class="mobile-shell mobile-shell--roster" data-testid="roster-screen">
-        <header class="club-header glossy-panel">
+        <header class="club-header club-header--roster glossy-panel">
           <div class="club-header__crest">FFC</div>
-          <div>
+          <div class="club-header__main">
             <div class="eyebrow">Kader</div>
             <h1>${state.clubName}</h1>
             <p>Startelf verwalten</p>
           </div>
-        </header>
-
-        <section class="roster-summary glossy-panel">
-          <div>
-            <span class="stat-card__label">Startelf</span>
-            <strong>${starterCount}/11</strong>
-          </div>
-          <div>
-            <span class="stat-card__label">Teamstärke</span>
+          <div class="club-header__strength">
+            <span>Teamstärke</span>
             <strong>${teamStrength}</strong>
           </div>
-          <div>
-            <span class="stat-card__label">Besetzung</span>
-            <strong class="roster-summary__shape">${renderLineupShape(state.team)}</strong>
-          </div>
-        </section>
+        </header>
 
         ${lineupWarning ? `<p class="lineup-warning" data-testid="roster-warning">${lineupWarning}</p>` : ""}
 
@@ -335,6 +368,256 @@ function renderRosterScreen(state) {
 
         ${renderRosterGroup("Startelf", starters, "Keine Startspieler gewählt.")}
         ${renderRosterGroup("Bank", bench, "Alle Spieler stehen in der Startelf.")}
+      </div>
+    </section>
+  `;
+}
+
+function renderTrainingScreen(state) {
+  const facility = state.team.trainingFacility;
+  const upgrade = facility.upgradeInProgress;
+  const targetLevel = getTrainingUpgradeTargetLevel(state);
+  const upgradeCost = getTrainingUpgradeCost(facility.level, targetLevel);
+  const upgradeDuration = getTrainingUpgradeDuration(facility.level, targetLevel);
+  const canUpgrade = !upgrade && facility.level < trainingUpgradeConfig.maxLevel && state.money >= upgradeCost;
+  const canDecreaseTarget = !upgrade && targetLevel > facility.level + 1;
+  const canIncreaseTarget = !upgrade && targetLevel < trainingUpgradeConfig.maxLevel;
+  const progressPercent = upgrade
+    ? Math.round(((upgrade.totalDays - upgrade.daysRemaining) / upgrade.totalDays) * 100)
+    : 0;
+
+  return `
+    <section class="screen screen--club screen--training">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="training-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">FFC</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Training</div>
+            <h1>${state.clubName}</h1>
+            <p>Spielerentwicklung steuern</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Level</span>
+            <strong>${facility.level}</strong>
+          </div>
+        </header>
+
+        <section class="training-card glossy-panel">
+          <div class="training-card__headline">
+            <span>Trainingsanlage</span>
+            <strong>${facility.level}/${trainingUpgradeConfig.maxLevel}</strong>
+          </div>
+          <p>Spieler können nur bis zur Stärke deiner Trainingsanlage wachsen.</p>
+          ${upgrade ? `
+            <div class="training-progress" data-testid="training-progress">
+              <div class="training-progress__bar">
+                <span style="width:${progressPercent}%"></span>
+              </div>
+              <strong>Ausbau auf Level ${upgrade.targetLevel}: ${upgrade.daysRemaining} Spieltage verbleibend</strong>
+            </div>
+          ` : `
+            <div class="training-upgrade">
+              <div class="training-target-control" data-testid="training-target-control">
+                <button class="training-target-control__button" data-action="change-training-target" data-delta="-1" ${canDecreaseTarget ? "" : "disabled"}>-1</button>
+                <div class="training-target-control__level">
+                  <span>Ziel</span>
+                  <strong>Level ${targetLevel}</strong>
+                </div>
+                <button class="training-target-control__button" data-action="change-training-target" data-delta="1" ${canIncreaseTarget ? "" : "disabled"}>+1</button>
+              </div>
+              <div class="training-upgrade__meta">
+                <span>Kosten: ${formatCurrency(upgradeCost)}</span>
+                <span>Bauzeit: ${upgradeDuration} Spieltag${upgradeDuration === 1 ? "" : "e"}</span>
+              </div>
+            </div>
+          `}
+          <button
+            class="action-button action-button--green training-upgrade__button"
+            data-action="upgrade-training"
+            data-testid="upgrade-training-button"
+            ${canUpgrade ? "" : "disabled"}
+          >
+            Trainingsanlage verbessern
+          </button>
+        </section>
+
+        ${renderTrainingMessages(state.trainingMessages)}
+
+        <button class="action-button action-button--blue roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderTicketPriceButtons(activeLevel) {
+  return Object.entries(stadiumConfig.ticketPriceLabels)
+    .map(([level, label]) => `
+      <button
+        class="formation-button ${activeLevel === level ? "formation-button--active" : ""}"
+        data-action="set-ticket-price"
+        data-ticket-price-level="${level}"
+        data-testid="ticket-${level}"
+        aria-pressed="${activeLevel === level}"
+      >
+        ${label} · ${stadiumConfig.ticketPrices[level]} €
+      </button>
+    `)
+    .join("");
+}
+
+function renderStandCard(standId, stand, state) {
+  const upgrade = stand.upgradeInProgress;
+  const targetCapacity = getStandUpgradeTarget(standId, state);
+  const upgradeCost = getStandUpgradeCost(stand.capacity, targetCapacity);
+  const upgradeDuration = getStandUpgradeDuration(stand.capacity, targetCapacity);
+  const canUpgrade = !upgrade && state.money >= upgradeCost;
+  const canDecreaseTarget = !upgrade && targetCapacity > stand.capacity + stadiumConfig.upgrade.addCapacity;
+  const progressPercent = upgrade
+    ? Math.round(((upgrade.totalDays - upgrade.daysRemaining) / upgrade.totalDays) * 100)
+    : 0;
+  return `
+    <article class="stand-card glossy-panel" data-testid="stand-${standId}">
+      <div class="stand-card__title">
+        <span>${stadiumConfig.standLabels[standId]}</span>
+        <strong>${stand.capacity}</strong>
+      </div>
+      ${upgrade ? `
+        <p>Ausbau: +${upgrade.addCapacity} Plätze · ${upgrade.daysRemaining} Spieltage</p>
+      ` : `
+        <p>Ausbau: +${stadiumConfig.upgrade.addCapacity} Plätze · ${formatCurrency(stadiumConfig.upgrade.cost)} · ${stadiumConfig.upgrade.durationDays} Spieltage</p>
+      `}
+      <button
+        class="roster-row__button stand-card__button"
+        data-action="upgrade-stand"
+        data-stand-id="${standId}"
+        data-testid="upgrade-stand-${standId}"
+        ${canUpgrade ? "" : "disabled"}
+      >
+        ${upgrade ? "Im Bau" : "Ausbauen"}
+      </button>
+    </article>
+  `;
+}
+
+function renderStandUpgradeCard(standId, stand, state) {
+  const upgrade = stand.upgradeInProgress;
+  const targetCapacity = getStandUpgradeTarget(standId, state);
+  const upgradeCost = getStandUpgradeCost(stand.capacity, targetCapacity);
+  const upgradeDuration = getStandUpgradeDuration(stand.capacity, targetCapacity);
+  const canUpgrade = !upgrade && state.money >= upgradeCost;
+  const canDecreaseTarget = !upgrade && targetCapacity > stand.capacity + stadiumConfig.upgrade.addCapacity;
+  const progressPercent = upgrade
+    ? Math.round(((upgrade.totalDays - upgrade.daysRemaining) / upgrade.totalDays) * 100)
+    : 0;
+
+  return `
+    <article class="stand-card glossy-panel" data-testid="stand-${standId}">
+      <div class="stand-card__title">
+        <span>${stadiumConfig.standLabels[standId]}</span>
+        <strong>${stand.capacity}</strong>
+      </div>
+      ${upgrade ? `
+        <div class="stand-progress" data-testid="stand-progress-${standId}">
+          <div class="stand-progress__bar">
+            <span style="width:${progressPercent}%"></span>
+          </div>
+          <strong>Ausbau auf ${targetCapacity}: ${upgrade.daysRemaining} Spieltag${upgrade.daysRemaining === 1 ? "" : "e"} verbleibend</strong>
+        </div>
+      ` : `
+        <div class="stand-upgrade">
+          <div class="stand-upgrade-control" data-testid="stand-target-${standId}">
+            <button
+              class="stand-upgrade-control__button"
+              data-action="change-stand-target"
+              data-stand-id="${standId}"
+              data-delta="-${stadiumConfig.upgrade.addCapacity}"
+              ${canDecreaseTarget ? "" : "disabled"}
+            >
+              -100
+            </button>
+            <div class="stand-upgrade-control__level">
+              <span>Ziel</span>
+              <strong>${targetCapacity}</strong>
+            </div>
+            <button
+              class="stand-upgrade-control__button"
+              data-action="change-stand-target"
+              data-stand-id="${standId}"
+              data-delta="${stadiumConfig.upgrade.addCapacity}"
+            >
+              +100
+            </button>
+          </div>
+          <div class="stand-upgrade__meta">
+            <span>Kosten: ${formatCurrency(upgradeCost)}</span>
+            <span>Bauzeit: ${upgradeDuration} Spieltag${upgradeDuration === 1 ? "" : "e"}</span>
+          </div>
+        </div>
+      `}
+      <button
+        class="roster-row__button stand-card__button"
+        data-action="upgrade-stand"
+        data-stand-id="${standId}"
+        data-testid="upgrade-stand-${standId}"
+        ${canUpgrade ? "" : "disabled"}
+      >
+        ${upgrade ? "Im Bau" : "Ausbauen"}
+      </button>
+    </article>
+  `;
+}
+
+function renderStadiumScreen(state) {
+  const stadium = state.team.stadium;
+  const capacity = getStadiumCapacity(state.team);
+  const forecast = calculateAttendanceAndRevenue(state.team, state.matchHistory);
+  const lastRevenue = stadium.lastMatchRevenue;
+
+  return `
+    <section class="screen screen--club screen--stadium">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="stadium-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">FFC</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Stadion</div>
+            <h1>${state.clubName}</h1>
+            <p>Zuschauer und Ausbau</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Kapazität</span>
+            <strong>${capacity}</strong>
+          </div>
+        </header>
+
+        <section class="formation-selector glossy-panel" data-testid="ticket-price-selector">
+          <span class="formation-selector__label">Ticketpreis:</span>
+          <div class="formation-selector__buttons">
+            ${renderTicketPriceButtons(stadium.ticketPriceLevel)}
+          </div>
+        </section>
+
+        <section class="stadium-revenue glossy-panel">
+          <div>
+            <span>Prognose</span>
+            <strong>👥 ${forecast.attendance}</strong>
+            <small>${formatCurrency(forecast.revenue)} bei ${forecast.ticketPrice} €</small>
+          </div>
+          <div>
+            <span>Letztes Heimspiel</span>
+            <strong>${lastRevenue ? `👥 ${lastRevenue.attendance}` : "-"}</strong>
+            <small>${lastRevenue ? formatCurrency(lastRevenue.revenue) : "Noch keine Einnahmen"}</small>
+          </div>
+        </section>
+
+        ${state.stadiumStatusMessage ? `<p class="lineup-warning lineup-warning--soft">${state.stadiumStatusMessage}</p>` : ""}
+
+        <section class="stands-grid">
+          ${stadiumConfig.standIds.map((standId) => renderStandUpgradeCard(standId, stadium.stands[standId], state)).join("")}
+        </section>
+
+        <button class="action-button action-button--blue roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
       </div>
     </section>
   `;
@@ -408,7 +691,10 @@ function renderMatchScreen(state) {
             <span>${state.opponent.name}</span>
             <span class="scoreboard__crest scoreboard__crest--away">SVN</span>
           </div>
-          <div class="scoreboard__minute" data-testid="minute-value">${match.displayMinute}'</div>
+          <div class="scoreboard__meta">
+            <div class="scoreboard__minute" data-testid="minute-value">${match.displayMinute}'</div>
+            <div class="scoreboard__attendance" data-testid="attendance-value">👥 ${match.attendance ?? 0}</div>
+          </div>
         </header>
 
         <section class="ticker-stack" data-testid="ticker-stack">
@@ -491,10 +777,6 @@ function renderResultScreen(state) {
               <span>Torschüsse</span>
               <strong>${match.stats.homeShots} - ${match.stats.awayShots}</strong>
             </div>
-            <div class="result-stat">
-              <span>Schüsse aufs Tor</span>
-              <strong>${match.stats.homeShotsOnTarget} - ${match.stats.awayShotsOnTarget}</strong>
-            </div>
           </div>
         </section>
 
@@ -517,6 +799,10 @@ function render() {
     markup = renderClubScreen(gameState);
   } else if (gameState.currentScreen === "roster") {
     markup = renderRosterScreen(gameState);
+  } else if (gameState.currentScreen === "training") {
+    markup = renderTrainingScreen(gameState);
+  } else if (gameState.currentScreen === "stadium") {
+    markup = renderStadiumScreen(gameState);
   } else if (gameState.currentScreen === "match") {
     markup = renderMatchScreen(gameState);
   } else if (gameState.currentScreen === "result") {
@@ -535,6 +821,7 @@ function updateMatchScreen(state) {
 
   app.querySelector('[data-testid="score-value"]').textContent = `${match.homeGoals} - ${match.awayGoals}`;
   app.querySelector('[data-testid="minute-value"]').textContent = `${match.displayMinute}'`;
+  app.querySelector('[data-testid="attendance-value"]').textContent = `👥 ${match.attendance ?? 0}`;
 
   const tickerStack = app.querySelector('[data-testid="ticker-stack"]');
   tickerStack.innerHTML = match.tickerEvents.length
@@ -587,7 +874,24 @@ function bindEvents() {
   document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame());
   document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame());
   document.querySelector('[data-action="show-roster"]')?.addEventListener("click", () => setScreen("roster"));
+  document.querySelector('[data-action="show-training"]')?.addEventListener("click", () => setScreen("training"));
+  document.querySelector('[data-action="show-stadium"]')?.addEventListener("click", () => setScreen("stadium"));
   document.querySelector('[data-action="back-club"]')?.addEventListener("click", () => setScreen("club"));
+  document.querySelector('[data-action="upgrade-training"]')?.addEventListener("click", () => startTrainingFacilityUpgrade());
+  document.querySelectorAll('[data-action="change-training-target"]').forEach((button) => {
+    button.addEventListener("click", () => changeTrainingUpgradeTarget(Number(button.dataset.delta)));
+  });
+  document.querySelectorAll('[data-action="set-ticket-price"]').forEach((button) => {
+    button.addEventListener("click", () => setTicketPriceLevel(button.dataset.ticketPriceLevel));
+  });
+  document.querySelectorAll('[data-action="change-stand-target"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      changeStandUpgradeTarget(button.dataset.standId, Number(button.dataset.delta));
+    });
+  });
+  document.querySelectorAll('[data-action="upgrade-stand"]').forEach((button) => {
+    button.addEventListener("click", () => startStandUpgrade(button.dataset.standId));
+  });
   document.querySelector('[data-action="auto-pick"]')?.addEventListener("click", () => autoPickBestEleven());
   document.querySelectorAll('[data-action="set-formation"]').forEach((button) => {
     button.addEventListener("click", () => setFormation(button.dataset.formation));

@@ -718,6 +718,7 @@ lastResults: ["W", "D", "L"]
 ```
 
 Maximal z. B. letzte 5 Spiele speichern.
+Achtung: Ist bereits implementiert.
 
 ## Formfaktor
 
@@ -776,12 +777,13 @@ Regeln:
 
 ## Anzeige im Spielbildschirm
 
-Während oder vor dem Spiel anzeigen:
+Während des Spiels anzeigen im oberen Bereich neben der aktuellen Spielzeit anzeigen:
 
 ```text
-Heute sind 520 Zuschauer im Stadion.
+520 (Zuschauersymbol)
 ```
 
+Zuschauersymbol soll nicht ausgeschrieben sein, sondern ein Symbol sein das Zuschauer repräsentiert.
 ## Akzeptanzkriterien
 
 - Stadionbildschirm zeigt vier Tribünen.

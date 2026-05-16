@@ -191,6 +191,8 @@ export function createInitialMatchState(team, opponent) {
     homeGoals: 0,
     awayGoals: 0,
     tickerEvents: [],
+    attendance: 0,
+    stadiumRevenue: null,
     tactic: "normal",
     formations: {
       home: homeFormation,
@@ -202,7 +204,9 @@ export function createInitialMatchState(team, opponent) {
       homeShotsOnTarget: 0,
       awayShotsOnTarget: 0,
       homePossession: 50,
-      awayPossession: 50
+      awayPossession: 50,
+      homePossessionTotal: 0,
+      possessionSamples: 0
     },
     scorers: [],
     players,
@@ -667,8 +671,12 @@ function createTickerText(teamName, opponentName, minute, isHomeTeam) {
 function updatePossession(match, ownStrength, opponentStrength, attackingTeam) {
   const strengthDiff = ownStrength - opponentStrength;
   const possessionBoost = attackingTeam === "home" ? 5 : -5;
-  const homePossession = clamp(50 + strengthDiff * 0.65 + possessionBoost, 34, 66);
-  match.stats.homePossession = Math.round(lerp(match.stats.homePossession, homePossession, 0.07));
+  const shotBoost = (match.stats.homeShots - match.stats.awayShots) * 1.4;
+  const goalBoost = (match.homeGoals - match.awayGoals) * 2;
+  const homePossession = clamp(50 + strengthDiff * 0.65 + possessionBoost + shotBoost + goalBoost, 34, 66);
+  match.stats.homePossessionTotal += homePossession;
+  match.stats.possessionSamples += 1;
+  match.stats.homePossession = Math.round(match.stats.homePossessionTotal / match.stats.possessionSamples);
   match.stats.awayPossession = 100 - match.stats.homePossession;
 }
 

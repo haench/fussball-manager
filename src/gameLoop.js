@@ -1,5 +1,16 @@
 import { matchConfig } from "./config.js";
-import { gameState, isLineupValid, saveCurrentGame, setMatch, setScreen, setState, updateMatch } from "./state.js";
+import {
+  calculateAttendanceAndRevenue,
+  gameState,
+  isLineupValid,
+  processTrainingAfterMatch,
+  progressStadiumUpgrades,
+  saveCurrentGame,
+  setMatch,
+  setScreen,
+  setState,
+  updateMatch
+} from "./state.js";
 import { createInitialMatchState, getResultSummary, simulateStep } from "./matchSimulation.js";
 
 let activeLoopId = null;
@@ -18,6 +29,8 @@ export function startMatch() {
   }
 
   const matchState = createInitialMatchState(gameState.team, gameState.opponent);
+  matchState.stadiumRevenue = calculateAttendanceAndRevenue(gameState.team, gameState.matchHistory);
+  matchState.attendance = matchState.stadiumRevenue.attendance;
   setMatch(matchState);
   setScreen("match");
   matchStartTimeMs = 0;
@@ -54,7 +67,12 @@ export function continueAfterMatch() {
       },
       ...(state.matchHistory ?? [])
     ].slice(0, 5);
+    const stadiumRevenue = match.stadiumRevenue ?? calculateAttendanceAndRevenue(state.team, state.matchHistory);
+    state.team.stadium.lastMatchRevenue = stadiumRevenue;
+    state.money += stadiumRevenue.revenue;
     state.currentDay += 1;
+    progressStadiumUpgrades(state);
+    processTrainingAfterMatch(state);
     state.currentScreen = "club";
     state.match = null;
   });

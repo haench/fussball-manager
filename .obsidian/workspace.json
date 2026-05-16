@@ -14,7 +14,7 @@
               "type": "markdown",
               "state": {
                 "file": "specs.md",
-                "mode": "preview",
+                "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
@@ -185,19 +185,26 @@
   },
   "active": "d959c808b02127b6",
   "lastOpenFiles": [
-    "dist/assets/index-fvC-qvZp.js",
-    "dist/assets/index-BFE6GTeJ.js",
-    "dist/assets/index-CEWdc6Rj.js",
-    "dist/assets/index-zN-aDmDA.js",
-    "dist/index.html",
+    "dist/assets/index-DNpxHHDK.css",
+    "dist/assets/main_bg-DY30hnLb.jpg",
+    "dist/assets/index-B8EBgty9.js",
+    "dist/assets/logo-DnZeqacV.png",
+    "dist/assets/index-Bhr34Aol.css",
+    "dist/assets/index-1ZyaZfjy.js",
+    "assets/main_bg.jpg",
+    "assets/Tor.jpg",
+    "assets/logo.jpg",
+    "assets/Tor.jpg.0.pdnSave",
+    "assets/Tor.png.0.pdnSave",
+    "assets/logo.jpg.0.pdnSave",
+    "assets/logo.png.0.pdnSave",
+    "assets/main_bg.jpg.0.pdnSave",
+    "assets/main_bg.png",
+    "assets/ChatGPT Image 16. Mai 2026, 22_40_44.png.crdownload",
+    "dist/assets/index-BZ8ROPsJ.js",
+    "dist/assets/logo-Bl1dfPI6.png",
+    "assets/logo.png",
     "dist/assets/Tor-BlevFW6b.png",
-    "dist/assets/index-CvDWi8sp.js",
-    "dist/assets/index-BB0hmYUn.css",
-    "dist/assets",
-    "dist/assets/index-CBaLu_rP.css",
-    "dist/assets/index-DznzDuoJ.js",
-    "dist/assets/index-Bvm2tcc5.js",
-    "assets/Tor.png",
-    "assets/ChatGPT Image 15. Mai 2026, 21_52_23.png"
+    "assets/Tor.png"
   ]
 }

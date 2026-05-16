@@ -6,7 +6,7 @@ const defaultMatchConfig = {
   minGoalChancePerMinute: 0.004,
   maxGoalChancePerMinute: 0.05,
   strengthFactor: 0.0005,
-  tickerLimit: 2
+  tickerLimit: 1
 };
 
 export const uiTheme = {
