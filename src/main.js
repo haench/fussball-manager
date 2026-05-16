@@ -31,7 +31,8 @@ import {
 } from "./state.js";
 import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
-import logoImage from "../assets/logo.png";
+//import logoImage from "../assets/logo.png";
+const logoImage = "./assets/logo.png";
 const goalSplashImage = "./assets/Tor.png";
 
 const app = document.getElementById("app");
