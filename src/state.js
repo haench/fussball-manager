@@ -42,6 +42,10 @@ const fallbackPositions = [
 const fallbackAges = [21, 24, 19, 26, 30, 22, 25, 20, 23, 28, 27, 33, 18, 29, 21, 31, 20, 24, 19];
 const maxTrainingFacilityLevel = 100;
 const trainingUpgradeCostPerLevel = 5000;
+const maxYouthAcademyLevel = 100;
+const youthUpgradeCostPerLevel = 5000;
+const seasonMatchDays = 34;
+const youthOfferChance = 0.12;
 const stadiumStandIds = ["north", "south", "east", "west"];
 const ticketPriceLevels = ["low", "medium", "high"];
 const standUpgradeCapacity = 100;
@@ -69,6 +73,14 @@ const basePlayers = [
   { id: "p18", name: "Erik Brandt", strength: 10, isStarter: false, position: "striker" },
   { id: "p19", name: "Kilian Wolf", strength: 18, isStarter: false, position: "striker" }
 ];
+const youthFirstNames = ["Leon", "Finn", "Noah", "Elias", "Ben", "Mats", "Jonas", "Luis", "Emil", "Luca"];
+const youthLastNames = ["Schmidt", "Weber", "Fischer", "Hoffmann", "Keller", "Wagner", "Bauer", "Schulz", "Neumann", "Wolf"];
+const youthPositionWeights = [
+  { value: "goalkeeper", weight: 1 },
+  { value: "defender", weight: 4 },
+  { value: "midfielder", weight: 5 },
+  { value: "striker", weight: 4 }
+];
 
 function isValidPosition(position) {
   return positionOrder.includes(position);
@@ -89,6 +101,16 @@ function createInitialTrainingFacility() {
   };
 }
 
+function createInitialYouthAcademy() {
+  return {
+    level: 20,
+    upgradeInProgress: null,
+    pendingOffer: null,
+    offersThisSeason: 0,
+    seasonDay: 1
+  };
+}
+
 function createInitialStadium() {
   return {
     ticketPriceLevel: "medium",
@@ -102,25 +124,63 @@ function createInitialStadium() {
   };
 }
 
+function normalizeUpgrade(upgrade, level, maxLevel) {
+  return upgrade
+    && Number.isFinite(upgrade.targetLevel)
+    && Number.isFinite(upgrade.daysRemaining)
+    && Number.isFinite(upgrade.totalDays)
+    ? {
+      targetLevel: Math.max(level, Math.min(maxLevel, Math.round(upgrade.targetLevel))),
+      cost: Number.isFinite(upgrade.cost) ? upgrade.cost : 0,
+      daysRemaining: Math.max(0, Math.round(upgrade.daysRemaining)),
+      totalDays: Math.max(1, Math.round(upgrade.totalDays))
+    }
+    : null;
+}
+
 function normalizeTrainingFacility(trainingFacility) {
   const level = Number.isFinite(trainingFacility?.level)
     ? Math.max(0, Math.min(maxTrainingFacilityLevel, Math.round(trainingFacility.level)))
     : 20;
-  const upgrade = trainingFacility?.upgradeInProgress;
 
   return {
     level,
-    upgradeInProgress: upgrade
-      && Number.isFinite(upgrade.targetLevel)
-      && Number.isFinite(upgrade.daysRemaining)
-      && Number.isFinite(upgrade.totalDays)
-      ? {
-        targetLevel: Math.max(level, Math.min(maxTrainingFacilityLevel, Math.round(upgrade.targetLevel))),
-        cost: Number.isFinite(upgrade.cost) ? upgrade.cost : 0,
-        daysRemaining: Math.max(0, Math.round(upgrade.daysRemaining)),
-        totalDays: Math.max(1, Math.round(upgrade.totalDays))
-      }
-      : null
+    upgradeInProgress: normalizeUpgrade(trainingFacility?.upgradeInProgress, level, maxTrainingFacilityLevel)
+  };
+}
+
+function normalizeYouthOffer(offer) {
+  if (!offer || typeof offer !== "object") {
+    return null;
+  }
+
+  return {
+    id: typeof offer.id === "string" ? offer.id : `youth-${Date.now()}`,
+    name: typeof offer.name === "string" ? offer.name : "Jugendspieler",
+    strength: Number.isFinite(offer.strength) ? Math.max(1, Math.round(offer.strength)) : 10,
+    age: Number.isFinite(offer.age) ? Math.max(16, Math.round(offer.age)) : 17,
+    fatigue: Number.isFinite(offer.fatigue) ? Math.max(0, Math.round(offer.fatigue)) : 0,
+    salaryPerMatchDay: Number.isFinite(offer.salaryPerMatchDay) ? Math.max(0, Math.round(offer.salaryPerMatchDay)) : 200,
+    isStarter: false,
+    position: isValidPosition(offer.position) ? offer.position : "midfielder"
+  };
+}
+
+function normalizeYouthAcademy(youthAcademy) {
+  const level = Number.isFinite(youthAcademy?.level)
+    ? Math.max(0, Math.min(maxYouthAcademyLevel, Math.round(youthAcademy.level)))
+    : 20;
+
+  return {
+    level,
+    upgradeInProgress: normalizeUpgrade(youthAcademy?.upgradeInProgress, level, maxYouthAcademyLevel),
+    pendingOffer: normalizeYouthOffer(youthAcademy?.pendingOffer),
+    offersThisSeason: Number.isFinite(youthAcademy?.offersThisSeason)
+      ? Math.max(0, Math.min(2, Math.round(youthAcademy.offersThisSeason)))
+      : 0,
+    seasonDay: Number.isFinite(youthAcademy?.seasonDay)
+      ? Math.max(1, Math.min(seasonMatchDays, Math.round(youthAcademy.seasonDay)))
+      : 1
   };
 }
 
@@ -182,6 +242,10 @@ function normalizePlayer(player, fallbackPlayer, index) {
     name: typeof player?.name === "string" ? player.name : fallbackPlayer.name,
     strength: Number.isFinite(player?.strength) ? player.strength : fallbackPlayer.strength,
     age: Number.isFinite(player?.age) ? player.age : fallbackPlayer.age ?? getFallbackAge(index),
+    fatigue: Number.isFinite(player?.fatigue) ? player.fatigue : fallbackPlayer.fatigue ?? 0,
+    salaryPerMatchDay: Number.isFinite(player?.salaryPerMatchDay)
+      ? player.salaryPerMatchDay
+      : fallbackPlayer.salaryPerMatchDay,
     isStarter: typeof player?.isStarter === "boolean" ? player.isStarter : fallbackPlayer.isStarter,
     position: isValidPosition(player?.position)
       ? player.position
@@ -215,6 +279,7 @@ export function normalizeTeam(team) {
     name: typeof team?.name === "string" ? team.name : "Felix FC",
     formation: isValidFormation(team?.formation) ? team.formation : DEFAULT_FORMATION,
     trainingFacility: normalizeTrainingFacility(team?.trainingFacility),
+    youthAcademy: normalizeYouthAcademy(team?.youthAcademy),
     stadium: normalizeStadium(team?.stadium),
     players
   };
@@ -226,6 +291,7 @@ function createInitialTeam() {
     name: "Felix FC",
     formation: DEFAULT_FORMATION,
     trainingFacility: createInitialTrainingFacility(),
+    youthAcademy: createInitialYouthAcademy(),
     stadium: createInitialStadium(),
     players: structuredClone(basePlayers)
   });
@@ -242,6 +308,8 @@ function createInitialState(screen = "start") {
     trainingMessages: [],
     trainingStatusMessage: "",
     trainingUpgradeTargetLevel: null,
+    youthStatusMessage: "",
+    youthUpgradeTargetLevel: null,
     stadiumStatusMessage: "",
     stadiumUpgradeTargets: {},
     rosterMessage: "",
@@ -429,6 +497,13 @@ export const trainingUpgradeConfig = {
   maxLevel: maxTrainingFacilityLevel
 };
 
+export const youthAcademyConfig = {
+  costPerLevel: youthUpgradeCostPerLevel,
+  maxLevel: maxYouthAcademyLevel,
+  seasonMatchDays,
+  maxOffersPerSeason: 2
+};
+
 function getMinimumTrainingUpgradeTarget(currentLevel) {
   return Math.min(maxTrainingFacilityLevel, currentLevel + 1);
 }
@@ -566,6 +641,203 @@ export function startTrainingFacilityUpgrade() {
   };
   gameState.trainingUpgradeTargetLevel = null;
   gameState.trainingStatusMessage = `Ausbau gestartet: Level ${targetLevel} in ${durationDays} Spieltagen.`;
+  saveGame(gameState);
+  notify();
+  return true;
+}
+
+function getMinimumYouthUpgradeTarget(currentLevel) {
+  return Math.min(maxYouthAcademyLevel, currentLevel + 1);
+}
+
+export function getYouthUpgradeCost(currentLevel, targetLevel) {
+  return Math.max(0, targetLevel - currentLevel) * youthUpgradeCostPerLevel;
+}
+
+export function getYouthUpgradeDuration(currentLevel, targetLevel) {
+  return Math.max(0, targetLevel - currentLevel);
+}
+
+export function getYouthUpgradeTargetLevel(state = gameState) {
+  const currentLevel = state.team.youthAcademy.level;
+  const minimumTarget = getMinimumYouthUpgradeTarget(currentLevel);
+
+  if (currentLevel >= maxYouthAcademyLevel) {
+    return maxYouthAcademyLevel;
+  }
+
+  if (!Number.isFinite(state.youthUpgradeTargetLevel)) {
+    state.youthUpgradeTargetLevel = minimumTarget;
+  }
+
+  state.youthUpgradeTargetLevel = Math.max(
+    minimumTarget,
+    Math.min(maxYouthAcademyLevel, Math.round(state.youthUpgradeTargetLevel))
+  );
+  return state.youthUpgradeTargetLevel;
+}
+
+export function changeYouthUpgradeTarget(delta) {
+  const currentLevel = gameState.team.youthAcademy.level;
+
+  if (currentLevel >= maxYouthAcademyLevel || gameState.team.youthAcademy.upgradeInProgress) {
+    return false;
+  }
+
+  const currentTarget = getYouthUpgradeTargetLevel(gameState);
+  gameState.youthUpgradeTargetLevel = Math.max(
+    getMinimumYouthUpgradeTarget(currentLevel),
+    Math.min(maxYouthAcademyLevel, currentTarget + delta)
+  );
+  notify();
+  return true;
+}
+
+function pickWeighted(options) {
+  const totalWeight = options.reduce((sum, option) => sum + option.weight, 0);
+  let roll = Math.random() * totalWeight;
+
+  for (const option of options) {
+    roll -= option.weight;
+    if (roll <= 0) {
+      return option.value;
+    }
+  }
+
+  return options[options.length - 1].value;
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function createYouthPlayerOffer(academy = gameState.team.youthAcademy) {
+  const minStrength = Math.max(10, academy.level - 20);
+  const maxStrength = Math.max(minStrength, academy.level);
+  const strength = randomInt(minStrength, maxStrength);
+  const firstName = youthFirstNames[randomInt(0, youthFirstNames.length - 1)];
+  const lastName = youthLastNames[randomInt(0, youthLastNames.length - 1)];
+
+  return {
+    id: `youth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: `${firstName} ${lastName}`,
+    strength,
+    age: randomInt(16, 18),
+    fatigue: 0,
+    salaryPerMatchDay: strength * 20,
+    isStarter: false,
+    position: pickWeighted(youthPositionWeights)
+  };
+}
+
+export function progressYouthAcademyUpgrade(state = gameState) {
+  const academy = state.team.youthAcademy;
+
+  if (!academy.upgradeInProgress) {
+    return [];
+  }
+
+  academy.upgradeInProgress.daysRemaining -= 1;
+
+  if (academy.upgradeInProgress.daysRemaining > 0) {
+    return [];
+  }
+
+  const targetLevel = academy.upgradeInProgress.targetLevel;
+  academy.level = targetLevel;
+  academy.upgradeInProgress = null;
+  return [`Jugendzentrum ausgebaut: Level ${targetLevel}`];
+}
+
+export function processYouthAfterMatch(state = gameState) {
+  const academy = state.team.youthAcademy;
+  const messages = progressYouthAcademyUpgrade(state);
+  const seasonDay = ((state.currentDay - 1) % seasonMatchDays) + 1;
+
+  if (seasonDay === 1 && academy.seasonDay !== 1) {
+    academy.offersThisSeason = 0;
+  }
+
+  academy.seasonDay = seasonDay;
+
+  if (!academy.pendingOffer && academy.offersThisSeason < 2) {
+    const forceFirstOffer = seasonDay >= 17 && academy.offersThisSeason === 0;
+    const forceSecondOffer = seasonDay >= 34 && academy.offersThisSeason < 2;
+    const randomOffer = Math.random() < youthOfferChance;
+
+    if (forceFirstOffer || forceSecondOffer || randomOffer) {
+      academy.pendingOffer = createYouthPlayerOffer(academy);
+      academy.offersThisSeason += 1;
+      messages.push(`Neuer Jugendspieler entdeckt: ${academy.pendingOffer.name}`);
+    }
+  }
+
+  state.youthStatusMessage = messages.join(" ");
+  return messages;
+}
+
+export function startYouthAcademyUpgrade() {
+  const academy = gameState.team.youthAcademy;
+
+  if (academy.upgradeInProgress || academy.level >= maxYouthAcademyLevel) {
+    return false;
+  }
+
+  const targetLevel = getYouthUpgradeTargetLevel(gameState);
+  const cost = getYouthUpgradeCost(academy.level, targetLevel);
+  const durationDays = getYouthUpgradeDuration(academy.level, targetLevel);
+
+  if (durationDays <= 0) {
+    return false;
+  }
+
+  if (gameState.money < cost) {
+    gameState.youthStatusMessage = "Nicht genug Geld für den Ausbau.";
+    notify();
+    return false;
+  }
+
+  gameState.money -= cost;
+  academy.upgradeInProgress = {
+    targetLevel,
+    cost,
+    daysRemaining: durationDays,
+    totalDays: durationDays
+  };
+  gameState.youthUpgradeTargetLevel = null;
+  gameState.youthStatusMessage = `Ausbau gestartet: Level ${targetLevel} in ${durationDays} Spieltagen.`;
+  saveGame(gameState);
+  notify();
+  return true;
+}
+
+export function acceptYouthOffer() {
+  const offer = gameState.team.youthAcademy.pendingOffer;
+
+  if (!offer) {
+    return false;
+  }
+
+  gameState.team.players.push({
+    ...offer,
+    isStarter: false
+  });
+  gameState.team.youthAcademy.pendingOffer = null;
+  gameState.youthStatusMessage = `${offer.name} wurde in den Kader übernommen.`;
+  saveGame(gameState);
+  notify();
+  return true;
+}
+
+export function rejectYouthOffer() {
+  const offer = gameState.team.youthAcademy.pendingOffer;
+
+  if (!offer) {
+    return false;
+  }
+
+  gameState.team.youthAcademy.pendingOffer = null;
+  gameState.youthStatusMessage = `${offer.name} wurde abgelehnt.`;
   saveGame(gameState);
   notify();
   return true;

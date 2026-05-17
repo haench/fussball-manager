@@ -881,6 +881,42 @@ button.hub-tile {
   font-size: 1.35rem;
 }
 
+.youth-offer {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.youth-offer h2 {
+  margin: 0;
+  color: var(--green);
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 2rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.youth-offer p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.youth-offer__stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.youth-offer__stats span {
+  padding: 11px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-weight: 800;
+  text-align: center;
+}
+
 .stadium-revenue {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

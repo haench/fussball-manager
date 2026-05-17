@@ -69,6 +69,20 @@ const breakoutPatterns = [
   { x: 0.03, y: 0.15, lane: 0 },
   { x: 0.24, y: -0.02, lane: -0.24 }
 ];
+const scorerWeights = {
+  striker: 60,
+  forward: 60,
+  midfielder: 28,
+  defender: 11.9,
+  goalkeeper: 0.1
+};
+const opponentScorerLabels = {
+  forward: "Stürmer",
+  striker: "Stürmer",
+  midfielder: "Mittelfeld",
+  defender: "Verteidiger",
+  goalkeeper: "Torwart"
+};
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -146,6 +160,37 @@ function getPreferredCarrierIndex(players, phase) {
 
 function getStarterPlayers(team) {
   return team.players.filter((player) => player.isStarter).slice(0, 11);
+}
+
+function getScorerWeight(position) {
+  return scorerWeights[position] ?? scorerWeights.midfielder;
+}
+
+export function pickGoalScorer(team, matchTeamSide, match = null) {
+  if (matchTeamSide === "home") {
+    const starters = getStarterPlayers(team);
+    const scorer = weightedPick(starters.map((player) => ({
+      value: player,
+      weight: getScorerWeight(player.position)
+    })));
+
+    return {
+      name: scorer.name,
+      position: scorer.position
+    };
+  }
+
+  const opponentPlayers = match?.players?.away ?? createPlayers("away", AWAY_DEFAULT_FORMATION);
+  const scorer = weightedPick(opponentPlayers.map((player, index) => ({
+    value: player,
+    weight: getScorerWeight(player.role)
+  })));
+  const positionLabel = opponentScorerLabels[scorer.role] ?? "Spieler";
+
+  return {
+    name: `${team.name} ${positionLabel} ${scorer.lineIndex + 1}`,
+    position: scorer.role
+  };
 }
 
 export function calculateTeamStrength(team) {
@@ -680,7 +725,7 @@ function updatePossession(match, ownStrength, opponentStrength, attackingTeam) {
   match.stats.awayPossession = 100 - match.stats.homePossession;
 }
 
-function registerGoal(match, minute, isHomeTeam) {
+function registerGoal(match, minute, isHomeTeam, scorer) {
   if (isHomeTeam) {
     match.homeGoals += 1;
   } else {
@@ -689,7 +734,9 @@ function registerGoal(match, minute, isHomeTeam) {
 
   match.scorers.push({
     minute,
-    team: isHomeTeam ? "home" : "away"
+    team: isHomeTeam ? "home" : "away",
+    name: scorer.name,
+    position: scorer.position
   });
 }
 
@@ -790,8 +837,9 @@ function advanceGoalPlan(team, opponent, match, eventMinute) {
 
   if (stage.shot) {
     const isHomeGoal = scoringTeam === "home";
+    const scorer = pickGoalScorer(isHomeGoal ? team : opponent, scoringTeam, match);
     registerShot(match, isHomeGoal, true);
-    registerGoal(match, eventMinute, isHomeGoal);
+    registerGoal(match, eventMinute, isHomeGoal, scorer);
     updateTicker(match, createTickerText(team.name, opponent.name, eventMinute, isHomeGoal));
     match.goalSplash = {
       teamName: isHomeGoal ? team.name : opponent.name,

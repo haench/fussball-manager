@@ -3,6 +3,7 @@ import {
   calculateAttendanceAndRevenue,
   gameState,
   isLineupValid,
+  processYouthAfterMatch,
   processTrainingAfterMatch,
   progressStadiumUpgrades,
   saveCurrentGame,
@@ -73,6 +74,7 @@ export function continueAfterMatch() {
     state.currentDay += 1;
     progressStadiumUpgrades(state);
     processTrainingAfterMatch(state);
+    processYouthAfterMatch(state);
     state.currentScreen = "club";
     state.match = null;
   });

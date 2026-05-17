@@ -1267,22 +1267,211 @@ Saisonziel verpasst. Nächste Saison klappt es bestimmt!
 - Bei Erfolg gibt es Bonusgeld.
 
 ---
-
-# 13. Liga-, Tabellen- und Saison-Loop
+# 13. Team-, Liga-, Tabellen- und Saison-Loop
 
 ## Ziel dieses Schritts
 
+Das Spiel erhält echte Spielstrukturen mit Vereinen, Kadern, Ligen, Tabellen, Spieltagen, Saisons sowie Aufstieg und Abstieg.
+
+Bisher sind Teams noch nicht vollständig im Spiel implementiert. Dieses Feature führt daher zuerst eine belastbare Team- und Liga-Datenstruktur ein. Als Basis dient die Datei:
+
+`fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json`
+
+Diese Datei enthält fiktive/anonymisierte Vereine und Spieler aus drei Ligen und soll beim Spielstart geladen oder in die Anwendung eingebunden werden.
+
+---
+
+# 13.1 Team- und Kader-Implementierung
+
+## Ziel
+
+Die Vereine aus der JSON-Datei werden als spielbare Teams in den Spielzustand übernommen.
+
+Jeder Verein besitzt:
+
+- eindeutige ID
+- Name
+- Liga-Zuordnung
+- Kader
+- Teamstärke
+- Startelf
+- Bank / Ersatzspieler
+- Taktik / Formation
+- Saisonwerte
+- Tabellenwerte
+
+## Neue Struktur: Team
+
+```js
+team: {
+  id: "team_001",
+  name: "FC Beispielstadt",
+  leagueId: "liga1",
+
+  players: [],
+
+  formation: "4-3-3",
+
+  strength: 72,
+
+  finances: {
+    balance: 500000,
+    weeklyWages: 0
+  },
+
+  season: {
+    goalsFor: 0,
+    goalsAgainst: 0,
+    wins: 0,
+    draws: 0,
+    losses: 0,
+    points: 0
+  }
+}
+````
+
+## Neue Struktur: Player
+
+Die Spieler werden aus der JSON-Datei übernommen. Fehlende Werte wurden bereits in der anonymisierten JSON ergänzt.
+
+```js
+player: {
+  id: "player_001",
+  name: "Lukas Beispiel",
+  number: 10,
+  position: "MF",
+  age: 24,
+  strength: 71,
+  potential: 78,
+  fitness: 100,
+  morale: 70,
+  nationalities: ["Deutschland"],
+  isStarter: false
+}
+```
+
+## Teamstärke
+
+Die Teamstärke wird initial aus den Spielern berechnet.
+
+Für die erste Umsetzung:
+
+```js
+team.strength = averageStrengthOfBestEleven(team.players)
+```
+
+Optional später:
+
+- Formation berücksichtigen
+    
+- Fitness berücksichtigen
+    
+- Moral berücksichtigen
+    
+- Heimvorteil berücksichtigen
+    
+- Positionsabdeckung berücksichtigen
+    
+
+## Startelf
+
+Beim Laden der Teams soll automatisch eine Startelf erzeugt werden.
+
+Regeln:
+
+- genau 11 Startspieler
+    
+- bevorzugt stärkste Spieler
+    
+- später positionsabhängig anhand Formation
+    
+- übrige Spieler sind Bank / Reserve
+    
+
+Für erste Umsetzung reicht:
+
+```js
+autoPickBestEleven(team.players)
+```
+
+Später soll die bestehende Kader-Management-Logik verwendet werden.
+
+---
+
+# 13.2 JSON-Datenquelle
+
+## Basisdatei
+
+Die Datei `fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json` ist die zentrale Datenquelle für initiale Vereine und Spieler.
+
+Beim Spielstart wird daraus der initiale Spielzustand erzeugt.
+
+## Erwartete Daten
+
+Die Datei enthält:
+
+- 3 Ligen
+    
+- 56 fiktive Vereine
+    
+- 1528 fiktive Spieler
+    
+
+Für den ersten Liga-Loop werden pro Liga 18 Vereine benötigt.
+
+## Umgang mit 56 Vereinen
+
+Da das Liga-System zunächst mit 18 Vereinen pro Liga arbeitet, müssen die Teams beim Import normalisiert werden.
+
+Regel für erste Umsetzung:
+
+- Liga 1: 18 Vereine
+    
+- Liga 2: 18 Vereine
+    
+- Liga 3: 18 Vereine
+    
+- übrige Vereine werden ignoriert oder als Reserve gespeichert
+    
+
+Empfohlene Struktur:
+
+```js
+database: {
+  leagues: [],
+  teams: [],
+  players: [],
+  reserveTeams: []
+}
+```
+
+Falls eine Liga mehr als 18 Vereine enthält, werden nur die ersten 18 verwendet.
+
+Falls eine Liga weniger als 18 Vereine enthält, soll die Initialisierung mit einer klaren Fehlermeldung abbrechen.
+
+---
+
+# 13.3 Liga-Struktur
+
+## Ziel
+
 Das Spiel läuft über echte Saisons mit Ligen, Tabellen, Aufstieg und Abstieg.
 
-## Neue Struktur: Liga
+## Neue Struktur: League
 
 ```js
 league: {
   id: "liga3",
   name: "3. Liga",
-  teams: [],
+  level: 3,
+
+  teamIds: [],
+
   matchDay: 1,
-  totalMatchDays: 34
+  totalMatchDays: 34,
+
+  schedule: [],
+  standings: []
 }
 ```
 
@@ -1291,22 +1480,63 @@ league: {
 Jede Liga hat:
 
 - 18 Vereine
+    
 - 34 Spieltage
+    
 - Hin- und Rückrunde
+    
 
-## Tabelle
+## Ligen
+
+Für die erste Umsetzung:
+
+```js
+leagues: [
+  {
+    id: "liga1",
+    name: "1. Liga",
+    level: 1
+  },
+  {
+    id: "liga2",
+    name: "2. Liga",
+    level: 2
+  },
+  {
+    id: "liga3",
+    name: "3. Liga",
+    level: 3
+  }
+]
+```
+
+Die echten Namen aus der Quelle sind bereits anonymisiert. Die Ligen dürfen generisch benannt werden oder die Namen aus der JSON übernehmen.
+
+---
+
+# 13.4 Tabelle
+
+## Ziel
+
+Jede Liga besitzt eine Tabelle, die nach jedem Spieltag aktualisiert wird.
+
+## Struktur: Standing
 
 Pro Team:
 
 ```js
 standing: {
-  teamId,
+  teamId: "team_001",
+
   played: 0,
   wins: 0,
   draws: 0,
   losses: 0,
+
   goalsFor: 0,
   goalsAgainst: 0,
+  goalDifference: 0,
+
   points: 0
 }
 ```
@@ -1314,55 +1544,542 @@ standing: {
 ## Punkte
 
 - Sieg: 3 Punkte
+    
 - Unentschieden: 1 Punkt
+    
 - Niederlage: 0 Punkte
+    
 
-## Spielplan
+## Sortierung der Tabelle
 
-Für erste Umsetzung:
+Die Tabelle wird sortiert nach:
 
-- vorbereiteter Spielplan
-- oder einfache Rundengenerierung
+1. Punkte
+    
+2. Tordifferenz
+    
+3. Geschossene Tore
+    
+4. Siege
+    
+5. Teamname
+    
+
+---
+
+# 13.5 Spielplan
+
+## Ziel
+
+Für jede Liga wird ein vollständiger Spielplan erzeugt.
+
+## Anforderungen
+
+- 18 Teams pro Liga
+    
+- 34 Spieltage
+    
+- jedes Team spielt pro Spieltag genau ein Spiel
+    
+- jedes Team spielt gegen jedes andere Team zweimal
+    
+- einmal zuhause
+    
+- einmal auswärts
+    
+
+## Struktur: Match
+
+```js
+match: {
+  id: "match_liga3_001",
+  leagueId: "liga3",
+  matchDay: 1,
+
+  homeTeamId: "team_001",
+  awayTeamId: "team_002",
+
+  homeGoals: null,
+  awayGoals: null,
+
+  played: false,
+  isUserMatch: false
+}
+```
+
+## Spielplan-Generierung
+
+Für die erste Umsetzung kann eine einfache Rundengenerierung verwendet werden.
+
+Akzeptiert ist:
+
+- Round-Robin-Verfahren
+    
+- Hinrunde mit 17 Spieltagen
+    
+- Rückrunde mit getauschtem Heimrecht
+    
+- insgesamt 34 Spieltage
+    
 
 Wichtig:
 
-- Spieler hat pro Spieltag genau ein Spiel.
-- Andere Spiele können im Hintergrund simuliert werden.
+- Der Spieler hat pro Spieltag genau ein Spiel.
+    
+- Andere Spiele werden im Hintergrund simuliert.
+    
+- Ein Spieltag gilt erst als abgeschlossen, wenn alle Spiele des Spieltags gespielt oder simuliert wurden.
+    
+
+---
+
+# 13.6 Spieltags-Loop
+
+## Ziel
+
+Der Spieler spielt sein eigenes Spiel live. Alle anderen Spiele desselben Spieltags werden automatisch im Hintergrund simuliert.
+
+## Ablauf eines Spieltags
+
+1. Nächstes Spiel des Spielervereins bestimmen
+    
+2. Spielsimulation für das Spieler-Spiel öffnen
+    
+3. Ergebnis des Spieler-Spiels übernehmen
+    
+4. Tabelle aktualisieren
+    
+5. Restliche Spiele des Spieltags simulieren
+    
+6. Tabelle erneut aktualisieren
+    
+7. Spieltag erhöhen
+    
+8. Zurück zur Steuerzentrale
+    
 
 ## Hintergrundsimulation
 
 Für andere Teams:
 
-- Ergebnis über Teamstärken berechnen
 - keine Live-Simulation nötig
+    
+- Ergebnis wird über Teamstärken berechnet
+    
+- zufällige Streuung erlaubt
+    
+- Heimvorteil optional
+    
 
-## Saisonende
+Beispiel:
 
-Nach 34 Spieltagen:
+```js
+simulateBackgroundMatch(homeTeam, awayTeam)
+```
 
-- Tabelle finalisieren
-- Saisonziele prüfen
-- Aufstieg / Abstieg anwenden
-- neue Saison starten
+Ergebnis soll plausibel sein:
+
+- häufige Ergebnisse: 0:0, 1:0, 1:1, 2:1, 2:0
+    
+- selten hohe Ergebnisse
+    
+- stärkere Teams gewinnen wahrscheinlicher
+    
+- Unentschieden bleibt möglich
+    
+
+---
+
+# 13.7 Verbindung zur bestehenden Spielsimulation
+
+## Ziel
+
+Die bestehende Live-Spielsimulation wird in den Liga-Loop integriert.
+
+Wenn der Spieler auf „Nächstes Spiel“ klickt:
+
+- Gegner wird aus dem Spielplan gelesen
+    
+- Heim-/Auswärtsstatus wird angezeigt
+    
+- Teamnamen kommen aus den importierten Teams
+    
+- Teamstärken kommen aus den importierten Kadern
+    
+- Taktik/Formation des Spielervereins wird verwendet
+    
+- Ergebnis wird nach Spielende in den Ligastand übernommen
+    
+
+## Anforderungen an die Spielsimulation
+
+Die bestehende Simulation darf weiterverwendet werden, muss aber ihr Ergebnis an den Liga-Loop zurückgeben.
+
+Beispiel:
+
+```js
+finishMatch({
+  matchId,
+  homeGoals,
+  awayGoals
+})
+```
+
+Danach:
+
+- Match als gespielt markieren
+    
+- Tabelle aktualisieren
+    
+- andere Spiele des Spieltags simulieren
+    
+- Spieltag abschließen
+    
+
+---
+
+# 13.8 Saisonende
+
+## Ziel
+
+Nach 34 Spieltagen endet die Saison.
+
+## Ablauf
+
+Nach Spieltag 34:
+
+1. Tabellen finalisieren
+    
+2. Saisonziele prüfen
+    
+3. Aufstieg / Abstieg anwenden
+    
+4. neue Saison vorbereiten
+    
+5. neuen Spielplan erzeugen
+    
+6. Tabellen zurücksetzen
+    
+7. Saisonnummer erhöhen
+    
+8. neue Saison starten
+    
+
+## Struktur: Season
+
+```js
+season: {
+  year: 2026,
+  currentMatchDay: 1,
+  isFinished: false
+}
+```
+
+---
+
+# 13.9 Aufstieg und Abstieg
+
+## Ziel
+
+Zwischen den Ligen findet ein einfaches Auf- und Abstiegsmodell statt.
+
+## Einfaches Modell
+
+- Top 2 aus Liga 2 steigen in Liga 1 auf
+    
+- Bottom 2 aus Liga 1 steigen in Liga 2 ab
+    
+- Top 2 aus Liga 3 steigen in Liga 2 auf
+    
+- Bottom 2 aus Liga 2 steigen in Liga 3 ab
+    
+
+## Keine Liga unter Liga 3
+
+Für die erste Umsetzung:
+
+- Bottom 2 aus Liga 3 bleiben in Liga 3
+    
+- keine Regionalliga
+    
+- kein zusätzlicher Abstieg aus Liga 3
+    
+
+Optional später:
+
+- Regionalliga hinzufügen
+    
+- Relegation hinzufügen
+    
+- konfigurierbare Auf-/Abstiegsregeln
+    
+
+## Umsetzung
+
+Nach Saisonende werden die `leagueId` der betroffenen Teams angepasst.
+
+Danach werden die Teams pro Liga neu sortiert und neue Spielpläne erzeugt.
+
+---
+
+# 13.10 Neuer Spielstand / Initialisierung
+
+## Ziel
+
+Beim Start eines neuen Spiels werden Teams, Spieler, Ligen, Tabellen und Spielpläne initialisiert.
+
+## Ablauf
+
+```js
+createNewGame()
+```
+
+muss künftig:
+
+1. JSON-Daten laden
+    
+2. Teams erzeugen
+    
+3. Spieler zu Teams zuordnen
+    
+4. Ligen erzeugen
+    
+5. Teams auf Ligen verteilen
+    
+6. Startelf pro Team automatisch wählen
+    
+7. Teamstärken berechnen
+    
+8. Tabellen initialisieren
+    
+9. Spielpläne erzeugen
+    
+10. Spielerverein auswählen oder setzen
+    
+11. Spieltag 1 starten
+    
+
+## Beispiel GameState
+
+```js
+gameState: {
+  managerName: "Felix",
+  selectedTeamId: "team_001",
+
+  season: {
+    year: 2026,
+    currentMatchDay: 1,
+    isFinished: false
+  },
+
+  leagues: [],
+  teams: [],
+  players: [],
+
+  currentScreen: "dashboard"
+}
+```
+
+---
+
+# 13.11 Anforderungen an die UI
+
+## Steuerzentrale
+
+Die Kachel "Spieltag" soll erweitert werden um 
+
+- aktuelle Liga
+- Tabellenplatz 
+- Punkte 
+-
+Kachel nächstes Spiel wird verändert:
+- Heim/Auswärts signalisieren durch position im "nächstes Spiel" container - Mannschaft links ist Heimmannschaft )
+
+## Neuer Tabellenbildschirm
+
+Ein neuer Bildschirm zeigt die Tabelle der aktuellen Liga, wird geöffnet durch drücken der "Spieltag" Kachel
+
+Spalten:
+
+- Platz
+    
+- Verein
+    
+- Spiele
+    
+- Siege
+    
+- Unentschieden
+    
+- Niederlagen
+    
+- Tore
+    
+- Tordifferenz
+    
+- Punkte
+    
+   
+
+---
+
+# 13.12 Akzeptanzkriterien
+
+## Team-Import
+
+- Die Datei `fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json` wird als Datenbasis verwendet.
+    
+- Vereine werden aus der JSON-Datei importiert.
+    
+- Spieler werden aus der JSON-Datei importiert.
+    
+- Jeder Spieler gehört genau zu einem Team.
+    
+- Jedes Team besitzt einen Kader.
+    
+- Jedes Team besitzt eine berechnete Teamstärke.
+    
+- Jedes Team besitzt automatisch genau 11 Startspieler.
+    
+- Fehlende Werte werden entweder aus der JSON übernommen oder beim Import sinnvoll ergänzt.
+    
+
+## Liga
+
+- Es gibt 3 Ligen.
+    
+- Jede Liga hat 18 Vereine.
+    
+- Jede Liga hat 34 Spieltage.
+    
+- Jede Liga besitzt eine Tabelle.
+    
+- Jede Liga besitzt einen vollständigen Spielplan.
+    
+
+## Spieltag
+
+- Der Spieler hat pro Spieltag genau ein Spiel.
+    
+- Andere Spiele desselben Spieltags werden automatisch simuliert.
+    
+- Nach jedem Spiel wird die Tabelle aktualisiert.
+    
+- Ein Spieltag wird erst abgeschlossen, wenn alle Spiele des Spieltags gespielt wurden.
+    
+
+## Tabelle
+
+- Sieg gibt 3 Punkte.
+    
+- Unentschieden gibt 1 Punkt.
+    
+- Niederlage gibt 0 Punkte.
+    
+- Tordifferenz wird berechnet.
+    
+- Tabelle wird korrekt sortiert.
+    
+
+## Saison
+
+- Nach 34 Spieltagen endet die Saison.
+    
+- Aufstieg und Abstieg werden angewendet.
+    
+- Neue Saison startet automatisch.
+    
+- Tabellen werden zurückgesetzt.
+    
+- Neue Spielpläne werden erzeugt.
+    
 
 ## Aufstieg / Abstieg
 
-Einfaches Modell:
+- Top 2 aus Liga 2 steigen in Liga 1 auf.
+    
+- Bottom 2 aus Liga 1 steigen in Liga 2 ab.
+    
+- Top 2 aus Liga 3 steigen in Liga 2 auf.
+    
+- Bottom 2 aus Liga 2 steigen in Liga 3 ab.
+    
+- Liga-Zuordnung der Teams wird korrekt aktualisiert.
+    
 
-- Top 2 steigen auf
-- Bottom 2 steigen ab
+---
 
-Kann später konfiguriert werden.
+# 13.13 Technische Hinweise für Codex
 
-## Akzeptanzkriterien
+## Wichtig
 
-- Liga hat 18 Vereine.
-- Saison hat 34 Spieltage.
-- Tabelle wird nach jedem Spiel aktualisiert.
-- Andere Spiele werden simuliert.
-- Nach 34 Spieltagen endet Saison.
-- Aufstieg / Abstieg funktioniert.
-- Neue Saison startet.
+Dieses Feature ist größer als ein reiner Liga-Loop. Es soll zuerst die fehlende Team-Datenbasis sauber einführen.
+
+Die Implementierung sollte daher in dieser Reihenfolge erfolgen:
+
+1. Datenimport aus JSON
+    
+2. Team- und Spielerstruktur normalisieren
+    
+3. Ligen erzeugen
+    
+4. Teams den Ligen zuordnen
+    
+5. Startelf und Teamstärke berechnen
+    
+6. Tabellen erzeugen
+    
+7. Spielpläne erzeugen
+    
+8. Spieltags-Loop implementieren
+    
+9. Hintergrundsimulation implementieren
+    
+10. Saisonende und Aufstieg/Abstieg implementieren
+    
+11. UI ergänzen
+    
+
+## Nicht sofort nötig
+
+Für diese erste Umsetzung nicht erforderlich:
+
+- Transfermarkt
+    
+- Verträge
+    
+- Gehälter im Detail
+    
+- Verletzungen
+    
+- Jugendspieler
+    
+- Relegation
+    
+- Pokal
+    
+- internationale Wettbewerbe
+    
+- echte Vereinsdaten
+    
+- echte Spielernamen
+    
+
+## Wichtig für bestehende App
+
+Die bestehende Kader-, Taktik- und Spielsimulationslogik soll nicht ersetzt, sondern an die neue Team-/Liga-Struktur angeschlossen werden.
+
+Bestehende Funktionen wie:
+
+```js
+autoPickBestEleven()
+setFormation()
+calculateTeamStrength()
+startMatch()
+continueAfterMatch()
+```
+
+sollen möglichst weiterverwendet oder nur minimal angepasst werden.
 
 ---
 

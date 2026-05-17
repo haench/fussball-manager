@@ -52,6 +52,38 @@ function isTrainingFacility(value) {
     && Number.isFinite(value.upgradeInProgress.totalDays);
 }
 
+function isYouthOffer(value) {
+  if (value === null || typeof value === "undefined") {
+    return true;
+  }
+
+  return isPlayer(value)
+    && Number.isFinite(value.fatigue)
+    && Number.isFinite(value.salaryPerMatchDay);
+}
+
+function isYouthAcademy(value) {
+  if (typeof value === "undefined") {
+    return true;
+  }
+
+  if (!isPlainObject(value) || !Number.isFinite(value.level)) {
+    return false;
+  }
+
+  const upgradeValid = value.upgradeInProgress === null
+    || typeof value.upgradeInProgress === "undefined"
+    || (isPlainObject(value.upgradeInProgress)
+      && Number.isFinite(value.upgradeInProgress.targetLevel)
+      && Number.isFinite(value.upgradeInProgress.daysRemaining)
+      && Number.isFinite(value.upgradeInProgress.totalDays));
+
+  return upgradeValid
+    && isYouthOffer(value.pendingOffer)
+    && (typeof value.offersThisSeason === "undefined" || Number.isFinite(value.offersThisSeason))
+    && (typeof value.seasonDay === "undefined" || Number.isFinite(value.seasonDay));
+}
+
 function isStand(value) {
   if (!isPlainObject(value) || !Number.isFinite(value.capacity)) {
     return false;
@@ -125,6 +157,7 @@ function normalizeSaveData(value) {
     || typeof team.name !== "string"
     || (typeof team.formation !== "undefined" && !VALID_FORMATIONS.has(team.formation))
     || !isTrainingFacility(team.trainingFacility)
+    || !isYouthAcademy(team.youthAcademy)
     || !isStadium(team.stadium)
     || !Array.isArray(team.players)
     || !team.players.every(isPlayer)

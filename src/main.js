@@ -1,10 +1,12 @@
 import { uiCopy } from "./config.js";
 import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
 import {
+  acceptYouthOffer,
   autoPickBestEleven,
   calculateAttendanceAndRevenue,
   changeStandUpgradeTarget,
   changeTrainingUpgradeTarget,
+  changeYouthUpgradeTarget,
   continueGame,
   createNewGame,
   gameState,
@@ -16,8 +18,12 @@ import {
   getTrainingUpgradeCost,
   getTrainingUpgradeDuration,
   getTrainingUpgradeTargetLevel,
+  getYouthUpgradeCost,
+  getYouthUpgradeDuration,
+  getYouthUpgradeTargetLevel,
   isLineupValid,
   positionLabels,
+  rejectYouthOffer,
   setFormation,
   setPlayerStarter,
   setScreen,
@@ -25,9 +31,11 @@ import {
   stadiumConfig,
   startStandUpgrade,
   startTrainingFacilityUpgrade,
+  startYouthAcademyUpgrade,
   sortPlayersByPosition,
   subscribe,
-  trainingUpgradeConfig
+  trainingUpgradeConfig,
+  youthAcademyConfig
 } from "./state.js";
 import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
@@ -94,6 +102,17 @@ function createTileMarkup(label, state) {
         <div class="hub-tile__icon">S</div>
         <div class="hub-tile__value">${capacity}</div>
         <div class="hub-tile__label">Stadion</div>
+      </button>
+    `;
+  }
+
+  if (label === "Jugend") {
+    const youthLevel = state.team.youthAcademy.level;
+    return `
+      <button class="hub-tile hub-tile--primary" data-action="show-youth" data-testid="youth-tile">
+        <div class="hub-tile__icon">J</div>
+        <div class="hub-tile__value">${youthLevel}</div>
+        <div class="hub-tile__label">Jugend</div>
       </button>
     `;
   }
@@ -451,6 +470,113 @@ function renderTrainingScreen(state) {
   `;
 }
 
+function renderYouthOffer(offer) {
+  if (!offer) {
+    return `
+      <section class="youth-offer glossy-panel" data-testid="youth-empty">
+        <div class="eyebrow">Talentsuche</div>
+        <p>Aktuell kein Jugendspieler entdeckt.</p>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="youth-offer glossy-panel" data-testid="youth-offer">
+      <div class="eyebrow">Neuer Jugendspieler entdeckt!</div>
+      <h2>${offer.name}</h2>
+      <div class="youth-offer__stats">
+        <span>${formatShortPosition(offer.position)}</span>
+        <span>${offer.age} Jahre</span>
+        <span>Stärke ${offer.strength}</span>
+        <span>${formatCurrency(offer.salaryPerMatchDay)} / Spieltag</span>
+      </div>
+      <p>In den Kader übernehmen?</p>
+      <div class="roster-actions">
+        <button class="action-button action-button--green roster-action" data-action="accept-youth" data-testid="accept-youth-button">Übernehmen</button>
+        <button class="action-button action-button--blue roster-action" data-action="reject-youth" data-testid="reject-youth-button">Ablehnen</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderYouthScreen(state) {
+  const academy = state.team.youthAcademy;
+  const upgrade = academy.upgradeInProgress;
+  const targetLevel = getYouthUpgradeTargetLevel(state);
+  const upgradeCost = getYouthUpgradeCost(academy.level, targetLevel);
+  const upgradeDuration = getYouthUpgradeDuration(academy.level, targetLevel);
+  const canUpgrade = !upgrade && academy.level < youthAcademyConfig.maxLevel && state.money >= upgradeCost;
+  const canDecreaseTarget = !upgrade && targetLevel > academy.level + 1;
+  const canIncreaseTarget = !upgrade && targetLevel < youthAcademyConfig.maxLevel;
+  const progressPercent = upgrade
+    ? Math.round(((upgrade.totalDays - upgrade.daysRemaining) / upgrade.totalDays) * 100)
+    : 0;
+
+  return `
+    <section class="screen screen--club screen--youth">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="youth-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">FFC</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Jugend</div>
+            <h1>${state.clubName}</h1>
+            <p>Talente entwickeln</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Level</span>
+            <strong>${academy.level}</strong>
+          </div>
+        </header>
+
+        <section class="training-card glossy-panel">
+          <div class="training-card__headline">
+            <span>Jugendzentrum</span>
+            <strong>${academy.level}/${youthAcademyConfig.maxLevel}</strong>
+          </div>
+          <p>Je besser dein Jugendzentrum ist, desto stärker können entdeckte Talente sein.</p>
+          ${upgrade ? `
+            <div class="training-progress" data-testid="youth-progress">
+              <div class="training-progress__bar">
+                <span style="width:${progressPercent}%"></span>
+              </div>
+              <strong>Ausbau auf Level ${upgrade.targetLevel}: ${upgrade.daysRemaining} Spieltage verbleibend</strong>
+            </div>
+          ` : `
+            <div class="training-upgrade">
+              <div class="training-target-control" data-testid="youth-target-control">
+                <button class="training-target-control__button" data-action="change-youth-target" data-delta="-1" ${canDecreaseTarget ? "" : "disabled"}>-1</button>
+                <div class="training-target-control__level">
+                  <span>Ziel</span>
+                  <strong>Level ${targetLevel}</strong>
+                </div>
+                <button class="training-target-control__button" data-action="change-youth-target" data-delta="1" ${canIncreaseTarget ? "" : "disabled"}>+1</button>
+              </div>
+              <div class="training-upgrade__meta">
+                <span>Kosten: ${formatCurrency(upgradeCost)}</span>
+                <span>Bauzeit: ${upgradeDuration} Spieltag${upgradeDuration === 1 ? "" : "e"}</span>
+              </div>
+            </div>
+          `}
+          ${state.youthStatusMessage ? `<p class="training-status">${state.youthStatusMessage}</p>` : ""}
+          <button
+            class="action-button action-button--green training-upgrade__button"
+            data-action="upgrade-youth"
+            data-testid="upgrade-youth-button"
+            ${canUpgrade ? "" : "disabled"}
+          >
+            Jugendzentrum verbessern
+          </button>
+        </section>
+
+        ${renderYouthOffer(academy.pendingOffer)}
+
+        <button class="action-button action-button--blue roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderTicketPriceButtons(activeLevel) {
   return Object.entries(stadiumConfig.ticketPriceLabels)
     .map(([level, label]) => `
@@ -732,15 +858,15 @@ function renderScorerList(match, state) {
     return `<p class="result-card__scorers">Keine Tore in diesem Spiel.</p>`;
   }
 
-  const names = state.team.players.filter((player) => player.isStarter).map((player) => player.name);
+  const fallbackNames = state.team.players.filter((player) => player.isStarter).map((player) => player.name);
   return `
     <ul class="result-card__scorers">
       ${match.scorers
         .slice(0, 3)
         .map((entry, index) => {
-          const scorerName = entry.team === "home"
-            ? names[index % names.length]
-            : `${state.opponent.name} ${index + 1}`;
+          const scorerName = entry.name ?? (entry.team === "home"
+            ? fallbackNames[index % fallbackNames.length]
+            : `${state.opponent.name} ${index + 1}`);
           return `<li>${entry.minute}' ${scorerName}</li>`;
         })
         .join("")}
@@ -802,6 +928,8 @@ function render() {
     markup = renderRosterScreen(gameState);
   } else if (gameState.currentScreen === "training") {
     markup = renderTrainingScreen(gameState);
+  } else if (gameState.currentScreen === "youth") {
+    markup = renderYouthScreen(gameState);
   } else if (gameState.currentScreen === "stadium") {
     markup = renderStadiumScreen(gameState);
   } else if (gameState.currentScreen === "match") {
@@ -876,11 +1004,18 @@ function bindEvents() {
   document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame());
   document.querySelector('[data-action="show-roster"]')?.addEventListener("click", () => setScreen("roster"));
   document.querySelector('[data-action="show-training"]')?.addEventListener("click", () => setScreen("training"));
+  document.querySelector('[data-action="show-youth"]')?.addEventListener("click", () => setScreen("youth"));
   document.querySelector('[data-action="show-stadium"]')?.addEventListener("click", () => setScreen("stadium"));
   document.querySelector('[data-action="back-club"]')?.addEventListener("click", () => setScreen("club"));
   document.querySelector('[data-action="upgrade-training"]')?.addEventListener("click", () => startTrainingFacilityUpgrade());
+  document.querySelector('[data-action="upgrade-youth"]')?.addEventListener("click", () => startYouthAcademyUpgrade());
+  document.querySelector('[data-action="accept-youth"]')?.addEventListener("click", () => acceptYouthOffer());
+  document.querySelector('[data-action="reject-youth"]')?.addEventListener("click", () => rejectYouthOffer());
   document.querySelectorAll('[data-action="change-training-target"]').forEach((button) => {
     button.addEventListener("click", () => changeTrainingUpgradeTarget(Number(button.dataset.delta)));
+  });
+  document.querySelectorAll('[data-action="change-youth-target"]').forEach((button) => {
+    button.addEventListener("click", () => changeYouthUpgradeTarget(Number(button.dataset.delta)));
   });
   document.querySelectorAll('[data-action="set-ticket-price"]').forEach((button) => {
     button.addEventListener("click", () => setTicketPriceLevel(button.dataset.ticketPriceLevel));
