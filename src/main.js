@@ -1,6 +1,7 @@
 import { uiCopy } from "./config.js";
 import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
-import leagueSourceData from "../data/fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json";
+const response = await fetch("./data/fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json");
+const data = await response.json();
 import {
   acceptYouthOffer,
   autoPickBestEleven,
