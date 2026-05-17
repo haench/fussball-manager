@@ -1,5 +1,12 @@
-import { loadGame, saveGame } from "./storage.js";
+import { loadGame, saveGame as persistGame } from "./storage.js";
 import { DEFAULT_FORMATION, formationDefinitions, getFormationDefinition, isValidFormation } from "./formations.js";
+import {
+  calculateTeamStrength as calculateWorldTeamStrength,
+  getNextUserMatch,
+  getTeamById,
+  getUserTeam,
+  initializeLeagueWorld
+} from "./leagueWorld.js";
 
 export const positionOrder = ["goalkeeper", "defender", "midfielder", "striker"];
 
@@ -312,6 +319,8 @@ function createInitialState(screen = "start") {
     youthUpgradeTargetLevel: null,
     stadiumStatusMessage: "",
     stadiumUpgradeTargets: {},
+    financeLedger: [],
+    postMatchReport: null,
     rosterMessage: "",
     team: createInitialTeam(),
     opponent: {
@@ -320,6 +329,48 @@ function createInitialState(screen = "start") {
     },
     match: null
   };
+}
+
+function syncUserTeamAlias(state = gameState) {
+  if (!Array.isArray(state.teams) || !state.selectedTeamId) {
+    return state.team;
+  }
+
+  const userTeam = getUserTeam(state);
+  if (!userTeam) {
+    return state.team;
+  }
+
+  state.team = userTeam;
+  state.clubName = userTeam.name;
+  if (!Number.isFinite(state.money)) {
+    state.money = userTeam.finances?.balance ?? 0;
+  }
+  state.currentDay = state.season?.currentMatchDay ?? state.currentDay;
+  const nextMatch = getNextUserMatch(state);
+  if (nextMatch) {
+    const opponentId = nextMatch.homeTeamId === state.selectedTeamId ? nextMatch.awayTeamId : nextMatch.homeTeamId;
+    const opponentTeam = getTeamById(state, opponentId);
+    state.opponent = {
+      id: opponentTeam?.id ?? opponentId,
+      name: opponentTeam?.name ?? "Gegner",
+      averageStrength: opponentTeam?.strength ?? calculateWorldTeamStrength(opponentTeam ?? { players: [] })
+    };
+  }
+  return userTeam;
+}
+
+function syncUserTeamFinance(state = gameState) {
+  const userTeam = syncUserTeamAlias(state);
+  if (userTeam?.finances) {
+    userTeam.finances.balance = state.money;
+    userTeam.strength = calculateWorldTeamStrength(userTeam);
+  }
+}
+
+function saveGame(state) {
+  syncUserTeamFinance(state);
+  return persistGame(state);
 }
 
 export const gameState = createInitialState();
@@ -344,33 +395,97 @@ export function setState(updater) {
   notify();
 }
 
-export function createNewGame() {
-  Object.assign(gameState, createInitialState("club"));
+export function createNewGame(leagueSourceData = null) {
+  const initialState = createInitialState("club");
+  if (leagueSourceData) {
+    const world = initializeLeagueWorld(leagueSourceData);
+    Object.assign(gameState, initialState, world, {
+      currentScreen: "club",
+      matchHistory: [],
+      trainingMessages: [],
+      financeLedger: [],
+      postMatchReport: null,
+      match: null
+    });
+    syncUserTeamAlias(gameState);
+  } else {
+    Object.assign(gameState, initialState);
+  }
+  syncUserTeamFinance(gameState);
   saveGame(gameState);
   notify();
 }
 
-export function continueGame() {
+export function continueGame(leagueSourceData = null) {
   const savedGame = loadGame();
 
   if (!savedGame) {
-    createNewGame();
+    createNewGame(leagueSourceData);
     return;
   }
 
-  Object.assign(gameState, createInitialState("club"), savedGame, {
-    currentScreen: "club",
-    team: normalizeTeam(savedGame.team),
-    trainingMessages: Array.isArray(savedGame.trainingMessages) ? savedGame.trainingMessages : [],
-    trainingStatusMessage: "",
-    match: null
-  });
+  if (Array.isArray(savedGame.teams) && savedGame.selectedTeamId) {
+    Object.assign(gameState, createInitialState("club"), savedGame, {
+      currentScreen: "club",
+      trainingMessages: Array.isArray(savedGame.trainingMessages) ? savedGame.trainingMessages : [],
+      trainingStatusMessage: "",
+      financeLedger: Array.isArray(savedGame.financeLedger) ? savedGame.financeLedger : [],
+      postMatchReport: null,
+      match: null
+    });
+    syncUserTeamAlias(gameState);
+  } else {
+    Object.assign(gameState, createInitialState("club"), savedGame, {
+      currentScreen: "club",
+      team: normalizeTeam(savedGame.team),
+      trainingMessages: Array.isArray(savedGame.trainingMessages) ? savedGame.trainingMessages : [],
+      trainingStatusMessage: "",
+      financeLedger: Array.isArray(savedGame.financeLedger) ? savedGame.financeLedger : [],
+      postMatchReport: null,
+      match: null
+    });
+  }
   saveGame(gameState);
   notify();
 }
 
 export function saveCurrentGame() {
+  syncUserTeamFinance(gameState);
   saveGame(gameState);
+}
+
+function getFinanceContext(state = gameState) {
+  return {
+    seasonYear: state.season?.year ?? 2026,
+    matchDay: state.season?.currentMatchDay ?? state.currentDay
+  };
+}
+
+export function addFinanceLedgerEntry(entry, state = gameState) {
+  const { seasonYear, matchDay } = getFinanceContext(state);
+  state.financeLedger ??= [];
+  state.financeLedger.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    seasonYear,
+    matchDay,
+    type: entry.type,
+    category: entry.category,
+    label: entry.label,
+    amount: Math.round(entry.amount),
+    meta: entry.meta ?? null
+  });
+  state.financeLedger = state.financeLedger.slice(-120);
+}
+
+export function getFinanceEntriesForContext(state = gameState, seasonYear = state.season?.year, matchDay = state.currentDay) {
+  return (state.financeLedger ?? []).filter((entry) => entry.seasonYear === seasonYear && entry.matchDay === matchDay);
+}
+
+export function finishPostMatchReport() {
+  gameState.postMatchReport = null;
+  gameState.currentScreen = "club";
+  saveCurrentGame();
+  notify();
 }
 
 export function getStarterCount(team = gameState.team) {
@@ -633,6 +748,13 @@ export function startTrainingFacilityUpgrade() {
   }
 
   gameState.money -= cost;
+  addFinanceLedgerEntry({
+    type: "expense",
+    category: "training",
+    label: `Trainingsanlage Ausbau auf Level ${targetLevel}`,
+    amount: -cost,
+    meta: { targetLevel, durationDays }
+  });
   facility.upgradeInProgress = {
     targetLevel,
     cost,
@@ -798,6 +920,13 @@ export function startYouthAcademyUpgrade() {
   }
 
   gameState.money -= cost;
+  addFinanceLedgerEntry({
+    type: "expense",
+    category: "youth",
+    label: `Jugendzentrum Ausbau auf Level ${targetLevel}`,
+    amount: -cost,
+    meta: { targetLevel, durationDays }
+  });
   academy.upgradeInProgress = {
     targetLevel,
     cost,
@@ -1014,6 +1143,13 @@ export function startStandUpgrade(standId) {
   }
 
   gameState.money -= cost;
+  addFinanceLedgerEntry({
+    type: "expense",
+    category: "stadium",
+    label: `${stadiumConfig.standLabels[standId]}-Tribüne Ausbau auf ${targetCapacity} Plätze`,
+    amount: -cost,
+    meta: { standId, targetCapacity, addCapacity, durationDays }
+  });
   stand.upgradeInProgress = {
     targetCapacity,
     addCapacity,

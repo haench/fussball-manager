@@ -135,6 +135,35 @@ function isMatchHistoryEntry(value) {
     && typeof value.opponentName === "string";
 }
 
+function isFinanceLedgerEntry(value) {
+  return isPlainObject(value)
+    && typeof value.id === "string"
+    && Number.isFinite(value.seasonYear)
+    && Number.isFinite(value.matchDay)
+    && ["income", "expense"].includes(value.type)
+    && typeof value.category === "string"
+    && typeof value.label === "string"
+    && Number.isFinite(value.amount);
+}
+
+function isWorldTeam(value) {
+  return isPlainObject(value)
+    && typeof value.id === "string"
+    && typeof value.name === "string"
+    && typeof value.leagueId === "string"
+    && Array.isArray(value.players)
+    && value.players.every(isPlayer);
+}
+
+function isLeague(value) {
+  return isPlainObject(value)
+    && typeof value.id === "string"
+    && typeof value.name === "string"
+    && Array.isArray(value.teamIds)
+    && Array.isArray(value.schedule)
+    && Array.isArray(value.standings);
+}
+
 function normalizeSaveData(value) {
   if (!isPlainObject(value)) {
     return null;
@@ -147,6 +176,8 @@ function normalizeSaveData(value) {
   const { currentDay, money, clubName, managerName, team, opponent } = value;
   const matchHistory = Array.isArray(value.matchHistory) ? value.matchHistory : [];
   const trainingMessages = Array.isArray(value.trainingMessages) ? value.trainingMessages : [];
+  const financeLedger = Array.isArray(value.financeLedger) ? value.financeLedger : [];
+  const hasWorld = Array.isArray(value.teams) && Array.isArray(value.leagues) && typeof value.selectedTeamId === "string";
 
   if (!Number.isFinite(currentDay)
     || !Number.isFinite(money)
@@ -165,7 +196,12 @@ function normalizeSaveData(value) {
     || typeof opponent.name !== "string"
     || !Number.isFinite(opponent.averageStrength)
     || !matchHistory.every(isMatchHistoryEntry)
+    || !financeLedger.every(isFinanceLedgerEntry)
     || !trainingMessages.every((message) => typeof message === "string")) {
+    return null;
+  }
+
+  if (hasWorld && (!value.teams.every(isWorldTeam) || !value.leagues.every(isLeague))) {
     return null;
   }
 
@@ -176,8 +212,16 @@ function normalizeSaveData(value) {
     managerName,
     matchHistory: clone(matchHistory).slice(0, 5),
     trainingMessages: clone(trainingMessages).slice(0, 8),
+    financeLedger: clone(financeLedger).slice(-120),
     team: clone(team),
-    opponent: clone(opponent)
+    opponent: clone(opponent),
+    ...(hasWorld ? {
+      selectedTeamId: value.selectedTeamId,
+      season: clone(value.season ?? {}),
+      leagues: clone(value.leagues),
+      teams: clone(value.teams),
+      database: clone(value.database ?? { reserveTeams: [] })
+    } : {})
   };
 }
 
@@ -190,8 +234,16 @@ export function createSaveData(state) {
     managerName: state.managerName,
     matchHistory: clone(state.matchHistory ?? []).slice(0, 5),
     trainingMessages: clone(state.trainingMessages ?? []).slice(0, 8),
+    financeLedger: clone(state.financeLedger ?? []).slice(-120),
     team: clone(state.team),
-    opponent: clone(state.opponent)
+    opponent: clone(state.opponent),
+    ...(Array.isArray(state.teams) && Array.isArray(state.leagues) ? {
+      selectedTeamId: state.selectedTeamId,
+      season: clone(state.season),
+      leagues: clone(state.leagues),
+      teams: clone(state.teams),
+      database: clone(state.database ?? { reserveTeams: [] })
+    } : {})
   };
 }
 

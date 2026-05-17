@@ -1,7 +1,9 @@
 import { matchConfig } from "./config.js";
 import {
+  addFinanceLedgerEntry,
   calculateAttendanceAndRevenue,
   gameState,
+  getFinanceEntriesForContext,
   isLineupValid,
   processYouthAfterMatch,
   processTrainingAfterMatch,
@@ -12,7 +14,15 @@ import {
   setState,
   updateMatch
 } from "./state.js";
-import { createInitialMatchState, getResultSummary, simulateStep } from "./matchSimulation.js";
+import { createInitialMatchState, getResultSummary, simulateMatchLogicUntil, simulateStep } from "./matchSimulation.js";
+import {
+  completeMatchDay,
+  finishUserMatch,
+  getMatchTeams,
+  getNextUserMatch,
+  getTeamById,
+  getUserTeam
+} from "./leagueWorld.js";
 
 let activeLoopId = null;
 let matchStartTimeMs = 0;
@@ -25,12 +35,27 @@ export function startMatch() {
     return;
   }
 
-  if (!isLineupValid(gameState.team)) {
+  const userTeam = getUserTeam(gameState);
+  if (!isLineupValid(userTeam)) {
     return;
   }
 
-  const matchState = createInitialMatchState(gameState.team, gameState.opponent);
-  matchState.stadiumRevenue = calculateAttendanceAndRevenue(gameState.team, gameState.matchHistory);
+  const fixture = getNextUserMatch(gameState);
+  const hasLeagueWorld = Boolean(fixture);
+  const { homeTeam, awayTeam } = hasLeagueWorld
+    ? getMatchTeams(gameState, fixture)
+    : { homeTeam: gameState.team, awayTeam: gameState.opponent };
+  const matchState = createInitialMatchState(homeTeam, awayTeam);
+  const isUserHome = !hasLeagueWorld || homeTeam.id === gameState.selectedTeamId;
+  matchState.fixtureId = fixture?.id ?? null;
+  matchState.homeTeamId = homeTeam.id;
+  matchState.awayTeamId = awayTeam.id;
+  matchState.homeTeamName = homeTeam.name;
+  matchState.awayTeamName = awayTeam.name;
+  matchState.isUserHome = isUserHome;
+  matchState.stadiumRevenue = isUserHome
+    ? calculateAttendanceAndRevenue(userTeam, gameState.matchHistory)
+    : { attendance: 0, revenue: 0, capacity: 0, ticketPrice: 0, ticketPriceLevel: userTeam.stadium?.ticketPriceLevel ?? "medium" };
   matchState.attendance = matchState.stadiumRevenue.attendance;
   setMatch(matchState);
   setScreen("match");
@@ -54,31 +79,128 @@ export function continueAfterMatch() {
   stopTimer();
   setState((state) => {
     const match = state.match;
-    const result = match.homeGoals > match.awayGoals
+    const hasLeagueWorld = Boolean(match.fixtureId && state.teams && state.leagues);
+    const reportSeasonYear = state.season?.year ?? 2026;
+    const reportMatchDay = state.season?.currentMatchDay ?? state.currentDay;
+    const reportLeague = hasLeagueWorld ? state.leagues.find((league) => league.schedule.some((fixture) => fixture.id === match.fixtureId)) : null;
+    const reportLeagueId = reportLeague?.id ?? null;
+    const userHomeGoals = match.isUserHome ? match.homeGoals : match.awayGoals;
+    const userAwayGoals = match.isUserHome ? match.awayGoals : match.homeGoals;
+    const opponentName = match.isUserHome ? match.awayTeamName : match.homeTeamName;
+    const result = userHomeGoals > userAwayGoals
       ? "S"
-      : match.homeGoals < match.awayGoals ? "N" : "U";
+      : userHomeGoals < userAwayGoals ? "N" : "U";
 
     state.matchHistory = [
       {
         result,
         day: state.currentDay,
-        opponentName: state.opponent.name,
-        homeGoals: match.homeGoals,
-        awayGoals: match.awayGoals
+        opponentName,
+        homeGoals: userHomeGoals,
+        awayGoals: userAwayGoals
       },
       ...(state.matchHistory ?? [])
     ].slice(0, 5);
-    const stadiumRevenue = match.stadiumRevenue ?? calculateAttendanceAndRevenue(state.team, state.matchHistory);
-    state.team.stadium.lastMatchRevenue = stadiumRevenue;
-    state.money += stadiumRevenue.revenue;
-    state.currentDay += 1;
+
+    if (hasLeagueWorld) {
+      finishUserMatch(state, {
+        matchId: match.fixtureId,
+        homeGoals: match.homeGoals,
+        awayGoals: match.awayGoals
+      });
+    }
+
+    const stadiumRevenue = match.isUserHome
+      ? (match.stadiumRevenue ?? calculateAttendanceAndRevenue(state.team, state.matchHistory))
+      : { attendance: 0, revenue: 0, capacity: 0, ticketPrice: 0, ticketPriceLevel: state.team.stadium.ticketPriceLevel };
+    if (match.isUserHome) {
+      state.team.stadium.lastMatchRevenue = stadiumRevenue;
+      state.money += stadiumRevenue.revenue;
+      addFinanceLedgerEntry({
+        type: "income",
+        category: "stadium",
+        label: `Zuschauereinnahmen: ${stadiumRevenue.attendance} Zuschauer × ${stadiumRevenue.ticketPrice} €`,
+        amount: stadiumRevenue.revenue,
+        meta: stadiumRevenue
+      }, state);
+    }
+
+    let completedMatchDay = null;
+    if (hasLeagueWorld) {
+      completedMatchDay = completeMatchDay(state);
+    } else {
+      state.currentDay += 1;
+    }
     progressStadiumUpgrades(state);
     processTrainingAfterMatch(state);
     processYouthAfterMatch(state);
-    state.currentScreen = "club";
+    state.postMatchReport = buildPostMatchReport(state, {
+      completedMatchDay,
+      leagueId: reportLeagueId,
+      matchDay: reportMatchDay,
+      seasonYear: reportSeasonYear,
+      userMatchId: match.fixtureId
+    });
+    state.currentScreen = state.postMatchReport ? "matchdayReport" : "financeReport";
     state.match = null;
   });
   saveCurrentGame();
+}
+
+function buildFixtureReport(fixture, state) {
+  const homeTeam = getTeamById(state, fixture.homeTeamId);
+  const awayTeam = getTeamById(state, fixture.awayTeamId);
+  return {
+    id: fixture.id,
+    leagueId: fixture.leagueId,
+    matchDay: fixture.matchDay,
+    homeTeamId: fixture.homeTeamId,
+    awayTeamId: fixture.awayTeamId,
+    homeTeamName: homeTeam?.name ?? fixture.homeTeamId,
+    awayTeamName: awayTeam?.name ?? fixture.awayTeamId,
+    homeGoals: fixture.homeGoals,
+    awayGoals: fixture.awayGoals,
+    played: Boolean(fixture.played),
+    isUserMatch: fixture.homeTeamId === state.selectedTeamId || fixture.awayTeamId === state.selectedTeamId
+  };
+}
+
+function buildPostMatchReport(state, context) {
+  const leagueSnapshot = context.completedMatchDay?.leagues?.find((league) => league.id === context.leagueId);
+  const financeEntries = getFinanceEntriesForContext(state, context.seasonYear, context.matchDay)
+    .map((entry) => ({ ...entry }));
+  const financeTotal = financeEntries.reduce((sum, entry) => sum + entry.amount, 0);
+  const moneyAfter = state.money;
+
+  if (!leagueSnapshot) {
+    return {
+      seasonYear: context.seasonYear,
+      leagueId: null,
+      leagueName: "Freundschaftsspiel",
+      matchDay: context.matchDay,
+      userMatchId: context.userMatchId,
+      matchdayFixtures: [],
+      seasonScheduleSnapshot: [],
+      financeEntries,
+      moneyBefore: moneyAfter - financeTotal,
+      moneyAfter
+    };
+  }
+
+  const seasonScheduleSnapshot = leagueSnapshot.schedule.map((fixture) => buildFixtureReport(fixture, state));
+  return {
+    seasonYear: context.seasonYear,
+    leagueId: leagueSnapshot.id,
+    leagueName: leagueSnapshot.name,
+    matchDay: context.matchDay,
+    totalMatchDays: leagueSnapshot.totalMatchDays,
+    userMatchId: context.userMatchId,
+    matchdayFixtures: seasonScheduleSnapshot.filter((fixture) => fixture.matchDay === context.matchDay),
+    seasonScheduleSnapshot,
+    financeEntries,
+    moneyBefore: moneyAfter - financeTotal,
+    moneyAfter
+  };
 }
 
 function stopTimer() {
@@ -119,9 +241,18 @@ function runMatchLoop() {
 
   if (shouldUpdate) {
     updateMatch((match) => {
+      const homeTeam = match.homeTeamId ? gameState.teams?.find((team) => team.id === match.homeTeamId) ?? gameState.team : gameState.team;
+      const awayTeam = match.awayTeamId ? gameState.teams?.find((team) => team.id === match.awayTeamId) ?? gameState.opponent : gameState.opponent;
+      simulateMatchLogicUntil(
+        homeTeam,
+        awayTeam,
+        match,
+        shouldFinish ? matchConfig.matchDurationMinutes : nextDisplayMinute
+      );
+
       for (let index = 0; index < simulationSteps; index += 1) {
         const deltaMinutes = (matchConfig.simulationStepMs / matchConfig.matchDurationMs) * matchConfig.matchDurationMinutes;
-        simulateStep(gameState.team, gameState.opponent, match, deltaMinutes);
+        simulateStep(homeTeam, awayTeam, match, deltaMinutes);
       }
 
       simulationAccumulatorMs -= simulationSteps * matchConfig.simulationStepMs;
