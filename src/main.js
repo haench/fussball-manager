@@ -1,5 +1,6 @@
 import { uiCopy } from "./config.js";
 import { continueAfterMatch, setTactic, startMatch } from "./gameLoop.js";
+import leagueSourceData from "../data/fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json";
 import {
   acceptYouthOffer,
   autoPickBestEleven,
@@ -9,6 +10,7 @@ import {
   changeYouthUpgradeTarget,
   continueGame,
   createNewGame,
+  finishPostMatchReport,
   gameState,
   getStarterCount,
   getStadiumCapacity,
@@ -39,6 +41,15 @@ import {
 } from "./state.js";
 import { formationIds } from "./formations.js";
 import { calculateTeamStrength } from "./matchSimulation.js";
+import {
+  getMatchTeams,
+  getNextUserMatch,
+  getStandingPosition,
+  getTeamById,
+  getUserLeague,
+  getUserStanding,
+  getUserTeam
+} from "./leagueWorld.js";
 //import logoImage from "../assets/logo.png";
 const logoImage = "./assets/logo.png";
 const goalSplashImage = "./assets/Tor.png";
@@ -59,6 +70,11 @@ function formatStrength(value) {
   return Math.round(value);
 }
 
+function formatSignedCurrency(value) {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${formatCurrency(Math.abs(value))}`;
+}
+
 function formatPosition(position) {
   return positionLabels[position] ?? position;
 }
@@ -72,9 +88,30 @@ function formatShortPosition(position) {
   }[position] ?? position;
 }
 
+function getDisplayTeam(state) {
+  return getUserTeam(state) ?? state.team;
+}
+
+function getCrest(team) {
+  return (team?.name ?? "FC")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 3) || "FC";
+}
+
+function getStrengthValue(team) {
+  return Number.isFinite(team?.averageStrength)
+    ? team.averageStrength
+    : calculateTeamStrength(team);
+}
+
 function createTileMarkup(label, state) {
   if (label === "Kader") {
-    const teamStrength = formatStrength(calculateTeamStrength(state.team));
+    const teamStrength = formatStrength(calculateTeamStrength(getDisplayTeam(state)));
     return `
       <button class="hub-tile hub-tile--primary" data-action="show-roster" data-testid="roster-tile">
         <div class="hub-tile__icon">K</div>
@@ -85,7 +122,7 @@ function createTileMarkup(label, state) {
   }
 
   if (label === "Training") {
-    const trainingLevel = state.team.trainingFacility.level;
+    const trainingLevel = getDisplayTeam(state).trainingFacility.level;
     return `
       <button class="hub-tile hub-tile--primary" data-action="show-training" data-testid="training-tile">
         <div class="hub-tile__icon">T</div>
@@ -96,7 +133,7 @@ function createTileMarkup(label, state) {
   }
 
   if (label === "Stadion") {
-    const capacity = getStadiumCapacity(state.team);
+    const capacity = getStadiumCapacity(getDisplayTeam(state));
     return `
       <button class="hub-tile hub-tile--primary" data-action="show-stadium" data-testid="stadium-tile">
         <div class="hub-tile__icon">S</div>
@@ -107,7 +144,7 @@ function createTileMarkup(label, state) {
   }
 
   if (label === "Jugend") {
-    const youthLevel = state.team.youthAcademy.level;
+    const youthLevel = getDisplayTeam(state).youthAcademy.level;
     return `
       <button class="hub-tile hub-tile--primary" data-action="show-youth" data-testid="youth-tile">
         <div class="hub-tile__icon">J</div>
@@ -184,7 +221,11 @@ function renderRecentMatchBadge(entry, index) {
 }
 
 function renderRecentMatches(matchHistory = []) {
-  const recentMatches = Array.from({ length: 5 }, (_, index) => matchHistory[index] ?? null);
+  const chronologicalMatches = [...(matchHistory ?? []).slice(0, 5)].reverse();
+  const recentMatches = [
+    ...Array.from({ length: Math.max(0, 5 - chronologicalMatches.length) }, () => null),
+    ...chronologicalMatches
+  ];
 
   return `
     <section class="recent-matches glossy-panel" data-testid="recent-matches">
@@ -235,29 +276,37 @@ function renderStartScreen() {
 }
 
 function renderClubScreen(state) {
-  const ownStrength = formatStrength(calculateTeamStrength(state.team));
-  const opponentStrength = formatStrength(state.opponent.averageStrength);
-  const lineupValid = isLineupValid(state.team);
+  const userTeam = getDisplayTeam(state);
+  const league = getUserLeague(state);
+  const standing = getUserStanding(state);
+  const standingPosition = getStandingPosition(state);
+  const nextMatch = getNextUserMatch(state);
+  const teams = nextMatch ? getMatchTeams(state, nextMatch) : { homeTeam: userTeam, awayTeam: state.opponent };
+  const homeStrength = formatStrength(getStrengthValue(teams.homeTeam ?? userTeam));
+  const awayStrength = formatStrength(getStrengthValue(teams.awayTeam ?? state.opponent));
+  const lineupValid = isLineupValid(userTeam);
   const lineupWarning = getLineupWarning(state);
+  const matchDay = state.season?.currentMatchDay ?? state.currentDay;
 
   return `
     <section class="screen screen--club">
       <div class="screen__backdrop"></div>
       <div class="mobile-shell" data-testid="club-screen">
         <header class="club-header glossy-panel">
-          <div class="club-header__crest">FFC</div>
+          <div class="club-header__crest">${getCrest(userTeam)}</div>
           <div>
             <div class="eyebrow">Vereinszentrale</div>
-            <h1>${state.clubName}</h1>
+            <h1>${userTeam.name}</h1>
             <p>Manager: ${state.managerName}</p>
           </div>
         </header>
 
         <div class="stats-grid">
-          <article class="stat-card glossy-panel">
+          <button class="stat-card stat-card--button glossy-panel" data-action="show-standings" data-testid="standings-tile">
             <span class="stat-card__label">Spieltag</span>
-            <strong>${state.currentDay}/${seasonMatchDays}</strong>
-          </article>
+            <strong>${matchDay}/${seasonMatchDays}</strong>
+            ${league && standing ? `<small>${league.name} · Platz ${standingPosition} · ${standing.points} Pkt.</small>` : ""}
+          </button>
           <article class="stat-card glossy-panel stat-card--money">
             <span class="stat-card__label">Kontostand</span>
             <strong>${formatCurrency(state.money)}</strong>
@@ -275,18 +324,18 @@ function renderClubScreen(state) {
           <div class="eyebrow">Nächstes Spiel</div>
           <div class="fixture">
             <div class="fixture__team">
-              <span class="fixture__crest">FFC</span>
+              <span class="fixture__crest">${getCrest(teams.homeTeam)}</span>
               <div class="fixture__details">
-                <span class="fixture__name">${state.clubName}</span>
-                <span class="fixture__strength">Stärke: ${ownStrength}</span>
+                <span class="fixture__name">${teams.homeTeam?.name ?? userTeam.name}</span>
+                <span class="fixture__strength">Stärke: ${homeStrength}</span>
               </div>
             </div>
             <div class="fixture__separator">-</div>
             <div class="fixture__team">
-              <span class="fixture__crest fixture__crest--away">SVN</span>
+              <span class="fixture__crest fixture__crest--away">${getCrest(teams.awayTeam)}</span>
               <div class="fixture__details">
-                <span class="fixture__name">${state.opponent.name}</span>
-                <span class="fixture__strength">Stärke: ${opponentStrength}</span>
+                <span class="fixture__name">${teams.awayTeam?.name ?? state.opponent.name}</span>
+                <span class="fixture__strength">Stärke: ${awayStrength}</span>
               </div>
             </div>
           </div>
@@ -500,6 +549,7 @@ function renderYouthOffer(offer) {
 }
 
 function renderYouthScreen(state) {
+  const userTeam = getDisplayTeam(state);
   const academy = state.team.youthAcademy;
   const upgrade = academy.upgradeInProgress;
   const targetLevel = getYouthUpgradeTargetLevel(state);
@@ -517,10 +567,10 @@ function renderYouthScreen(state) {
       <div class="screen__backdrop"></div>
       <div class="mobile-shell mobile-shell--roster" data-testid="youth-screen">
         <header class="club-header club-header--roster glossy-panel">
-          <div class="club-header__crest">FFC</div>
+          <div class="club-header__crest">${getCrest(userTeam)}</div>
           <div class="club-header__main">
             <div class="eyebrow">Jugend</div>
-            <h1>${state.clubName}</h1>
+            <h1>${userTeam.name}</h1>
             <p>Talente entwickeln</p>
           </div>
           <div class="club-header__strength">
@@ -750,6 +800,258 @@ function renderStadiumScreen(state) {
   `;
 }
 
+function renderStandingsScreen(state) {
+  const userTeam = getDisplayTeam(state);
+  const league = getUserLeague(state);
+
+  if (!league) {
+    return renderClubScreen(state);
+  }
+
+  return `
+    <section class="screen screen--club screen--standings">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="standings-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">${getCrest(userTeam)}</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Tabelle</div>
+            <h1>${league.name}</h1>
+            <p>Spieltag ${state.season?.currentMatchDay ?? league.matchDay}/${league.totalMatchDays}</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Platz</span>
+            <strong>${getStandingPosition(state) ?? "-"}</strong>
+          </div>
+        </header>
+
+        <button class="action-button action-button--green roster-action" data-action="show-season-schedule" data-testid="season-schedule-button">Saisonspielplan</button>
+
+        <section class="standings-table glossy-panel">
+          <div class="standings-row standings-row--head">
+            <span>Pl.</span>
+            <span>Verein</span>
+            <span>Sp.</span>
+            <span>S</span>
+            <span>U</span>
+            <span>N</span>
+            <span>Tore</span>
+            <span>Diff.</span>
+            <span>Pkt.</span>
+          </div>
+          ${league.standings.map((standing, index) => {
+            const team = getTeamById(state, standing.teamId);
+            return `
+              <div class="standings-row ${standing.teamId === state.selectedTeamId ? "standings-row--user" : ""}">
+                <span>${index + 1}</span>
+                <span>${team?.name ?? standing.teamId}</span>
+                <span>${standing.played}</span>
+                <span>${standing.wins}</span>
+                <span>${standing.draws}</span>
+                <span>${standing.losses}</span>
+                <span>${standing.goalsFor}:${standing.goalsAgainst}</span>
+                <span>${standing.goalDifference}</span>
+                <strong>${standing.points}</strong>
+              </div>
+            `;
+          }).join("")}
+        </section>
+
+        <button class="action-button action-button--blue roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderSeasonScheduleScreen(state) {
+  const userTeam = getDisplayTeam(state);
+  const league = getUserLeague(state);
+
+  if (!league) {
+    return renderStandingsScreen(state);
+  }
+
+  const fixturesByDay = league.schedule.reduce((groups, fixture) => {
+    groups[fixture.matchDay] ??= [];
+    groups[fixture.matchDay].push({
+      ...fixture,
+      homeTeamName: getTeamById(state, fixture.homeTeamId)?.name ?? fixture.homeTeamId,
+      awayTeamName: getTeamById(state, fixture.awayTeamId)?.name ?? fixture.awayTeamId,
+      isUserMatch: fixture.homeTeamId === state.selectedTeamId || fixture.awayTeamId === state.selectedTeamId
+    });
+    return groups;
+  }, {});
+  const currentMatchDay = state.season?.currentMatchDay ?? league.matchDay;
+
+  return `
+    <section class="screen screen--club screen--season-schedule">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="season-schedule-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">${getCrest(userTeam)}</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Saisonspielplan</div>
+            <h1>${league.name}</h1>
+            <p>Saison ${state.season?.year ?? 2026} · Spieltag ${currentMatchDay}/${league.totalMatchDays}</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Spiele</span>
+            <strong>${league.schedule.length}</strong>
+          </div>
+        </header>
+
+        <button class="action-button action-button--blue roster-action season-schedule__back" data-action="show-standings" data-testid="back-standings-button">Zurück zur Tabelle</button>
+
+        <section class="report-card glossy-panel">
+          <div class="report-card__headline">
+            <span>Kompletter Spielplan</span>
+            <strong>${league.totalMatchDays} Spieltage</strong>
+          </div>
+          <div class="season-schedule">
+            ${Object.entries(fixturesByDay).map(([matchDay, fixtures]) => `
+              <article class="schedule-day ${Number(matchDay) === currentMatchDay ? "schedule-day--current" : ""}">
+                <h3>Spieltag ${matchDay}</h3>
+                ${fixtures.map((fixture) => renderFixtureRow(fixture, true)).join("")}
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderFixtureScore(fixture) {
+  return fixture.played && Number.isFinite(fixture.homeGoals) && Number.isFinite(fixture.awayGoals)
+    ? `${fixture.homeGoals} - ${fixture.awayGoals}`
+    : "-:-";
+}
+
+function renderFixtureRow(fixture, compact = false) {
+  return `
+    <div class="fixture-report-row ${fixture.isUserMatch ? "fixture-report-row--user" : ""} ${compact ? "fixture-report-row--compact" : ""}">
+      <span>${fixture.homeTeamName}</span>
+      <strong>${renderFixtureScore(fixture)}</strong>
+      <span>${fixture.awayTeamName}</span>
+    </div>
+  `;
+}
+
+function renderMatchdayReportScreen(state) {
+  const report = state.postMatchReport;
+  if (!report) {
+    return renderClubScreen(state);
+  }
+
+  return `
+    <section class="screen screen--club screen--matchday-report">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="matchday-report-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">${getCrest(getDisplayTeam(state))}</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Spieltagsergebnisse</div>
+            <h1>${report.leagueName}</h1>
+            <p>Saison ${report.seasonYear} · Spieltag ${report.matchDay}/${report.totalMatchDays ?? seasonMatchDays}</p>
+          </div>
+        </header>
+
+        <section class="report-card glossy-panel">
+          <div class="report-card__headline">
+            <span>Abgeschlossener Spieltag</span>
+            <strong>${report.matchdayFixtures.length} Spiele</strong>
+          </div>
+          <div class="fixture-report-list">
+            ${report.matchdayFixtures.length
+              ? report.matchdayFixtures.map((fixture) => renderFixtureRow(fixture)).join("")
+              : `<p class="report-empty">Keine Ligaspiele gefunden.</p>`}
+          </div>
+        </section>
+
+        <button class="action-button action-button--green roster-action" data-action="show-finance-report" data-testid="show-finance-report-button">Weiter</button>
+      </div>
+    </section>
+  `;
+}
+
+function renderFinanceEntry(entry) {
+  const isIncome = entry.amount >= 0;
+  return `
+    <div class="finance-row ${isIncome ? "finance-row--income" : "finance-row--expense"}">
+      <span>${entry.label}</span>
+      <strong>${formatSignedCurrency(entry.amount)}</strong>
+    </div>
+  `;
+}
+
+function renderFinanceReportScreen(state) {
+  const report = state.postMatchReport;
+  if (!report) {
+    return renderClubScreen(state);
+  }
+
+  const incomeEntries = report.financeEntries.filter((entry) => entry.type === "income");
+  const expenseEntries = report.financeEntries.filter((entry) => entry.type === "expense");
+  const totalDelta = report.moneyAfter - report.moneyBefore;
+
+  return `
+    <section class="screen screen--club screen--finance-report">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="finance-report-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">${getCrest(getDisplayTeam(state))}</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Finanzen</div>
+            <h1>Spieltag ${report.matchDay}</h1>
+            <p>Einnahmen und Ausgaben</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Bilanz</span>
+            <strong>${formatSignedCurrency(totalDelta)}</strong>
+          </div>
+        </header>
+
+        <section class="finance-summary glossy-panel">
+          <div>
+            <span>Vorher</span>
+            <strong>${formatCurrency(report.moneyBefore)}</strong>
+          </div>
+          <div>
+            <span>Änderung</span>
+            <strong class="${totalDelta >= 0 ? "finance-positive" : "finance-negative"}">${formatSignedCurrency(totalDelta)}</strong>
+          </div>
+          <div>
+            <span>Nachher</span>
+            <strong>${formatCurrency(report.moneyAfter)}</strong>
+          </div>
+        </section>
+
+        <section class="report-card glossy-panel">
+          <div class="report-card__headline">
+            <span>Einnahmen</span>
+            <strong>${formatCurrency(incomeEntries.reduce((sum, entry) => sum + entry.amount, 0))}</strong>
+          </div>
+          ${incomeEntries.length
+            ? incomeEntries.map(renderFinanceEntry).join("")
+            : `<p class="report-empty">Keine Einnahmen an diesem Spieltag.</p>`}
+        </section>
+
+        <section class="report-card glossy-panel">
+          <div class="report-card__headline">
+            <span>Ausgaben</span>
+            <strong>${formatCurrency(Math.abs(expenseEntries.reduce((sum, entry) => sum + entry.amount, 0)))}</strong>
+          </div>
+          ${expenseEntries.length
+            ? expenseEntries.map(renderFinanceEntry).join("")
+            : `<p class="report-empty">Keine Ausgaben an diesem Spieltag.</p>`}
+        </section>
+
+        <button class="action-button action-button--green roster-action" data-action="finish-post-match" data-testid="finish-post-match-button">Weiter</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderMatchMarkers(markers, teamClass, teamName) {
   return markers
     .map((marker, index) => {
@@ -803,6 +1105,10 @@ function renderMatchScreen(state) {
   if (!match) {
     return "";
   }
+  const homeTeam = match.homeTeamId ? getTeamById(state, match.homeTeamId) : state.team;
+  const awayTeam = match.awayTeamId ? getTeamById(state, match.awayTeamId) : state.opponent;
+  const homeName = match.homeTeamName ?? homeTeam?.name ?? state.clubName;
+  const awayName = match.awayTeamName ?? awayTeam?.name ?? state.opponent.name;
 
   return `
     <section class="screen screen--match">
@@ -810,13 +1116,13 @@ function renderMatchScreen(state) {
       <div class="mobile-shell mobile-shell--wide" data-testid="match-screen">
         <header class="scoreboard glossy-panel" data-testid="scoreboard">
           <div class="scoreboard__team">
-            <span class="scoreboard__crest">FFC</span>
-            <span>${state.clubName}</span>
+            <span class="scoreboard__crest">${getCrest(homeTeam)}</span>
+            <span>${homeName}</span>
           </div>
           <div class="scoreboard__score" data-testid="score-value">${match.homeGoals} - ${match.awayGoals}</div>
           <div class="scoreboard__team scoreboard__team--right">
-            <span>${state.opponent.name}</span>
-            <span class="scoreboard__crest scoreboard__crest--away">SVN</span>
+            <span>${awayName}</span>
+            <span class="scoreboard__crest scoreboard__crest--away">${getCrest(awayTeam)}</span>
           </div>
           <div class="scoreboard__meta">
             <div class="scoreboard__minute" data-testid="minute-value">${match.displayMinute}'</div>
@@ -858,7 +1164,9 @@ function renderScorerList(match, state) {
     return `<p class="result-card__scorers">Keine Tore in diesem Spiel.</p>`;
   }
 
-  const fallbackNames = state.team.players.filter((player) => player.isStarter).map((player) => player.name);
+  const homeTeam = match.homeTeamId ? getTeamById(state, match.homeTeamId) : state.team;
+  const fallbackNames = homeTeam?.players?.filter((player) => player.isStarter).map((player) => player.name) ?? [];
+  const awayName = match.awayTeamName ?? state.opponent.name;
   return `
     <ul class="result-card__scorers">
       ${match.scorers
@@ -866,7 +1174,7 @@ function renderScorerList(match, state) {
         .map((entry, index) => {
           const scorerName = entry.name ?? (entry.team === "home"
             ? fallbackNames[index % fallbackNames.length]
-            : `${state.opponent.name} ${index + 1}`);
+            : `${awayName} ${index + 1}`);
           return `<li>${entry.minute}' ${scorerName}</li>`;
         })
         .join("")}
@@ -879,6 +1187,10 @@ function renderResultScreen(state) {
   if (!match?.result) {
     return "";
   }
+  const homeTeam = match.homeTeamId ? getTeamById(state, match.homeTeamId) : state.team;
+  const awayTeam = match.awayTeamId ? getTeamById(state, match.awayTeamId) : state.opponent;
+  const homeName = match.homeTeamName ?? homeTeam?.name ?? state.clubName;
+  const awayName = match.awayTeamName ?? awayTeam?.name ?? state.opponent.name;
 
   return `
     <section class="screen screen--result screen--result-${match.result.tone}">
@@ -890,8 +1202,8 @@ function renderResultScreen(state) {
 
         <section class="result-card glossy-panel">
           <div class="result-card__teams">
-            <div>${state.clubName}</div>
-            <div>${state.opponent.name}</div>
+            <div>${homeName}</div>
+            <div>${awayName}</div>
           </div>
           <div class="result-card__score" data-testid="result-score">${match.homeGoals} - ${match.awayGoals}</div>
           ${renderScorerList(match, state)}
@@ -932,6 +1244,14 @@ function render() {
     markup = renderYouthScreen(gameState);
   } else if (gameState.currentScreen === "stadium") {
     markup = renderStadiumScreen(gameState);
+  } else if (gameState.currentScreen === "standings") {
+    markup = renderStandingsScreen(gameState);
+  } else if (gameState.currentScreen === "seasonSchedule") {
+    markup = renderSeasonScheduleScreen(gameState);
+  } else if (gameState.currentScreen === "matchdayReport") {
+    markup = renderMatchdayReportScreen(gameState);
+  } else if (gameState.currentScreen === "financeReport") {
+    markup = renderFinanceReportScreen(gameState);
   } else if (gameState.currentScreen === "match") {
     markup = renderMatchScreen(gameState);
   } else if (gameState.currentScreen === "result") {
@@ -1000,12 +1320,16 @@ function updateTacticButtons(activeTactic) {
 }
 
 function bindEvents() {
-  document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame());
-  document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame());
+  document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame(leagueSourceData));
+  document.querySelector('[data-action="show-club"]')?.addEventListener("click", () => continueGame(leagueSourceData));
+  document.querySelector('[data-action="show-standings"]')?.addEventListener("click", () => setScreen("standings"));
+  document.querySelector('[data-action="show-season-schedule"]')?.addEventListener("click", () => setScreen("seasonSchedule"));
   document.querySelector('[data-action="show-roster"]')?.addEventListener("click", () => setScreen("roster"));
   document.querySelector('[data-action="show-training"]')?.addEventListener("click", () => setScreen("training"));
   document.querySelector('[data-action="show-youth"]')?.addEventListener("click", () => setScreen("youth"));
   document.querySelector('[data-action="show-stadium"]')?.addEventListener("click", () => setScreen("stadium"));
+  document.querySelector('[data-action="show-finance-report"]')?.addEventListener("click", () => setScreen("financeReport"));
+  document.querySelector('[data-action="finish-post-match"]')?.addEventListener("click", () => finishPostMatchReport());
   document.querySelector('[data-action="back-club"]')?.addEventListener("click", () => setScreen("club"));
   document.querySelector('[data-action="upgrade-training"]')?.addEventListener("click", () => startTrainingFacilityUpgrade());
   document.querySelector('[data-action="upgrade-youth"]')?.addEventListener("click", () => startYouthAcademyUpgrade());

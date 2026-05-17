@@ -167,7 +167,7 @@ function getScorerWeight(position) {
 }
 
 export function pickGoalScorer(team, matchTeamSide, match = null) {
-  if (matchTeamSide === "home") {
+  if (Array.isArray(team.players)) {
     const starters = getStarterPlayers(team);
     const scorer = weightedPick(starters.map((player) => ({
       value: player,
@@ -222,7 +222,7 @@ function createPlayers(teamSide, formationId) {
 
 export function createInitialMatchState(team, opponent) {
   const homeFormation = normalizeFormation(team.formation);
-  const awayFormation = AWAY_DEFAULT_FORMATION;
+  const awayFormation = normalizeFormation(opponent.formation ?? AWAY_DEFAULT_FORMATION);
   const players = {
     home: createPlayers("home", homeFormation),
     away: createPlayers("away", awayFormation)
@@ -232,6 +232,7 @@ export function createInitialMatchState(team, opponent) {
     minute: 0,
     displayMinute: 0,
     simulatedMinutes: 0,
+    processedMinute: 0,
     status: "playing",
     homeGoals: 0,
     awayGoals: 0,
@@ -713,6 +714,59 @@ function createTickerText(teamName, opponentName, minute, isHomeTeam) {
   return `${minute}': TOR für ${isHomeTeam ? teamName : opponentName}!`;
 }
 
+function getTeamStrengths(homeTeam, awayTeam) {
+  const homeStrength = calculateTeamStrength(homeTeam);
+  const awayStrength = Number.isFinite(awayTeam.averageStrength)
+    ? awayTeam.averageStrength
+    : calculateTeamStrength(awayTeam);
+
+  return { homeStrength, awayStrength };
+}
+
+function getGoalChances(homeTeam, awayTeam, match) {
+  const { homeStrength, awayStrength } = getTeamStrengths(homeTeam, awayTeam);
+  const strengthDiff = homeStrength - awayStrength;
+  const modifiers = getTacticGoalModifiers(match.tactic);
+  const homeModifier = match.isUserHome === false
+    ? modifiers.opponentAttackModifier
+    : modifiers.ownAttackModifier;
+  const awayModifier = match.isUserHome === false
+    ? modifiers.ownAttackModifier
+    : modifiers.opponentAttackModifier;
+
+  return {
+    homeGoalChance: clamp(
+      matchConfig.baseGoalChancePerMinute + strengthDiff * matchConfig.strengthFactor,
+      matchConfig.minGoalChancePerMinute,
+      matchConfig.maxGoalChancePerMinute
+    ) * homeModifier,
+    awayGoalChance: clamp(
+      matchConfig.baseGoalChancePerMinute - strengthDiff * matchConfig.strengthFactor,
+      matchConfig.minGoalChancePerMinute,
+      matchConfig.maxGoalChancePerMinute
+    ) * awayModifier,
+    homeStrength,
+    awayStrength
+  };
+}
+
+function startGoalVisual(match, teamName, scoringTeam) {
+  match.goalSplash = {
+    teamName,
+    stepsRemaining: Math.ceil(goalSplashDurationMs / matchConfig.simulationStepMs)
+  };
+  match.phase = {
+    type: "pressure",
+    attackingTeam: scoringTeam,
+    lane: weightedPick([
+      { value: "left", weight: 1 },
+      { value: "center", weight: 1.6 },
+      { value: "right", weight: 1 }
+    ]),
+    stepsRemaining: Math.max(6, Math.ceil(goalSequenceDurationMs / matchConfig.simulationStepMs))
+  };
+}
+
 function updatePossession(match, ownStrength, opponentStrength, attackingTeam) {
   const strengthDiff = ownStrength - opponentStrength;
   const possessionBoost = attackingTeam === "home" ? 5 : -5;
@@ -752,6 +806,43 @@ function registerShot(match, isHomeTeam, onTarget) {
   match.stats.awayShots += 1;
   if (onTarget) {
     match.stats.awayShotsOnTarget += 1;
+  }
+}
+
+function registerLogicalGoal(homeTeam, awayTeam, match, minute, isHomeGoal) {
+  const scoringTeam = isHomeGoal ? "home" : "away";
+  const scorer = pickGoalScorer(isHomeGoal ? homeTeam : awayTeam, scoringTeam, match);
+  registerShot(match, isHomeGoal, true);
+  registerGoal(match, minute, isHomeGoal, scorer);
+  updateTicker(match, createTickerText(homeTeam.name, awayTeam.name, minute, isHomeGoal));
+  startGoalVisual(match, isHomeGoal ? homeTeam.name : awayTeam.name, scoringTeam);
+}
+
+export function simulateMatchLogicUntil(homeTeam, awayTeam, match, targetMinute) {
+  match.processedMinute ??= 0;
+  const finalTargetMinute = Math.max(
+    match.processedMinute,
+    Math.min(matchConfig.matchDurationMinutes, Math.floor(targetMinute))
+  );
+
+  while (match.processedMinute < finalTargetMinute) {
+    match.processedMinute += 1;
+    const minute = match.processedMinute;
+    const { homeGoalChance, awayGoalChance } = getGoalChances(homeTeam, awayTeam, match);
+    const homeGoal = Math.random() < homeGoalChance;
+    const awayGoal = Math.random() < awayGoalChance;
+
+    if (homeGoal) {
+      registerLogicalGoal(homeTeam, awayTeam, match, minute, true);
+    } else if (Math.random() < homeGoalChance * 1.8 + 0.012) {
+      registerShot(match, true, Math.random() < 0.42);
+    }
+
+    if (awayGoal) {
+      registerLogicalGoal(homeTeam, awayTeam, match, minute, false);
+    } else if (Math.random() < awayGoalChance * 1.8 + 0.012) {
+      registerShot(match, false, Math.random() < 0.42);
+    }
   }
 }
 
@@ -837,14 +928,7 @@ function advanceGoalPlan(team, opponent, match, eventMinute) {
 
   if (stage.shot) {
     const isHomeGoal = scoringTeam === "home";
-    const scorer = pickGoalScorer(isHomeGoal ? team : opponent, scoringTeam, match);
     registerShot(match, isHomeGoal, true);
-    registerGoal(match, eventMinute, isHomeGoal, scorer);
-    updateTicker(match, createTickerText(team.name, opponent.name, eventMinute, isHomeGoal));
-    match.goalSplash = {
-      teamName: isHomeGoal ? team.name : opponent.name,
-      stepsRemaining: Math.ceil(goalSplashDurationMs / matchConfig.simulationStepMs)
-    };
     match.goalPlan = null;
     resetToKickoffShape(match);
     return;
@@ -872,41 +956,19 @@ function runResetShape(match) {
   }
 }
 
-function maybePrepareGoal(team, opponent, match, homePhase, deltaMinutes) {
+function maybeCreateVisualPressure(match, homePhase, deltaMinutes) {
   if (match.goalPlan || match.resetStepsRemaining > 0) {
     return;
   }
 
-  const ownStrength = calculateTeamStrength(team);
-  const opponentStrength = opponent.averageStrength;
-  const strengthDiff = ownStrength - opponentStrength;
-  const modifiers = getTacticGoalModifiers(match.tactic);
-  const homeGoalChance = clamp(
-    matchConfig.baseGoalChancePerMinute + strengthDiff * matchConfig.strengthFactor,
-    matchConfig.minGoalChancePerMinute,
-    matchConfig.maxGoalChancePerMinute
-  ) * modifiers.ownAttackModifier;
-  const awayGoalChance = clamp(
-    matchConfig.baseGoalChancePerMinute - strengthDiff * matchConfig.strengthFactor,
-    matchConfig.minGoalChancePerMinute,
-    matchConfig.maxGoalChancePerMinute
-  ) * modifiers.opponentAttackModifier;
-  const activeChance = (homePhase ? homeGoalChance : awayGoalChance) * deltaMinutes;
-
-  if (Math.random() < activeChance) {
-    prepareGoalScoringSequence(match, homePhase ? "home" : "away");
-    return;
-  }
-
-  const shotChance = activeChance + (match.phase.type === "pressure" ? 0.055 : 0.026) * deltaMinutes;
+  const shotChance = (match.phase.type === "pressure" ? 0.055 : 0.026) * deltaMinutes;
   if (Math.random() < shotChance) {
     registerShot(match, homePhase, Math.random() < 0.58);
   }
 }
 
 export function simulateStep(team, opponent, match, deltaMinutes) {
-  const ownStrength = calculateTeamStrength(team);
-  const opponentStrength = opponent.averageStrength;
+  const { homeStrength, awayStrength } = getTeamStrengths(team, opponent);
 
   match.simulatedMinutes = clamp(match.simulatedMinutes + deltaMinutes, 0, matchConfig.matchDurationMinutes);
   const eventMinute = Math.max(1, Math.min(matchConfig.matchDurationMinutes, Math.round(match.simulatedMinutes)));
@@ -914,7 +976,7 @@ export function simulateStep(team, opponent, match, deltaMinutes) {
 
   if (match.goalPlan) {
     advanceGoalPlan(team, opponent, match, eventMinute);
-    updatePossession(match, ownStrength, opponentStrength, match.goalPlan?.scoringTeam ?? match.phase.attackingTeam);
+    updatePossession(match, homeStrength, awayStrength, match.goalPlan?.scoringTeam ?? match.phase.attackingTeam);
     return;
   }
 
@@ -933,22 +995,25 @@ export function simulateStep(team, opponent, match, deltaMinutes) {
   const phaseSpeed = match.phase.type === "counter" ? 0.26 : match.phase.type === "pressure" ? 0.23 : 0.18;
 
   applyTargets(match, targets, phaseSpeed);
-  updatePossession(match, ownStrength, opponentStrength, attackingTeam);
+  updatePossession(match, homeStrength, awayStrength, attackingTeam);
   match.phase.stepsRemaining -= 1;
-  maybePrepareGoal(team, opponent, match, attackingTeam === "home", deltaMinutes);
+  maybeCreateVisualPressure(match, attackingTeam === "home", deltaMinutes);
 }
 
 export function simulateMinute(team, opponent, match) {
+  simulateMatchLogicUntil(team, opponent, match, (match.processedMinute ?? 0) + 1);
   simulateStep(team, opponent, match, 1);
   match.displayMinute = Math.round(match.simulatedMinutes);
   match.minute = match.displayMinute;
 }
 
 export function getResultSummary(match) {
-  if (match.homeGoals > match.awayGoals) {
+  const userGoals = match.isUserHome === false ? match.awayGoals : match.homeGoals;
+  const opponentGoals = match.isUserHome === false ? match.homeGoals : match.awayGoals;
+  if (userGoals > opponentGoals) {
     return { label: "Sieg", headline: "Sieg!", tone: "win" };
   }
-  if (match.homeGoals < match.awayGoals) {
+  if (userGoals < opponentGoals) {
     return { label: "Niederlage", headline: "Niederlage", tone: "loss" };
   }
   return { label: "Unentschieden", headline: "Unentschieden", tone: "draw" };
