@@ -1,4 +1,7 @@
 import { DEFAULT_FORMATION, AWAY_DEFAULT_FORMATION, getFormationDefinition } from "./formations.js";
+import { calculateTeamStrength } from "./domain/teamStrength.js";
+
+export { calculateTeamStrength };
 
 export const leagueSize = 18;
 export const totalMatchDays = 34;
@@ -98,13 +101,6 @@ export function autoPickBestEleven(team) {
   team.players.forEach((player) => {
     player.isStarter = selectedIds.has(player.id);
   });
-}
-
-export function calculateTeamStrength(team) {
-  const starters = team.players.filter((player) => player.isStarter).slice(0, 11);
-  const sourcePlayers = starters.length ? starters : [...team.players].sort((left, right) => right.strength - left.strength).slice(0, 11);
-  const sum = sourcePlayers.reduce((total, player) => total + player.strength, 0);
-  return sourcePlayers.length ? Math.round((sum / sourcePlayers.length) * 10) / 10 : 0;
 }
 
 export function normalizeImportedTeam(club, leagueId, teamIndex, isUserTeam = false) {

@@ -1075,8 +1075,6 @@ Abhängig von:
 
 - Stärke
 - Alter
-- Gehalt
-- Vertragslaufzeit
 
 Einfache Formel:
 
@@ -1095,7 +1093,6 @@ Spalten:
 - Name
 - Alter
 - Stärke
-- Gehalt
 - Ablöse
 
 Aktion:
@@ -1127,6 +1124,10 @@ Optionen:
 ## Externe Kaufangebote
 
 Auch ohne Transferliste können selten Angebote kommen.
+
+## UI
+
+Neue Kachel für Transfermarkt.
 
 ## Akzeptanzkriterien
 
