@@ -30,7 +30,9 @@ function isPlayer(value) {
     && Number.isFinite(value.strength)
     && (typeof value.age === "undefined" || Number.isFinite(value.age))
     && typeof value.isStarter === "boolean"
-    && (typeof value.position === "undefined" || VALID_POSITIONS.has(value.position));
+    && (typeof value.position === "undefined" || VALID_POSITIONS.has(value.position))
+    && (typeof value.marketValue === "undefined" || Number.isFinite(value.marketValue))
+    && (typeof value.isOnTransferList === "undefined" || typeof value.isOnTransferList === "boolean");
 }
 
 function isTrainingFacility(value) {
@@ -155,6 +157,24 @@ function isWorldTeam(value) {
     && value.players.every(isPlayer);
 }
 
+function isTransferablePlayer(value) {
+  if (!isPlainObject(value)) return false;
+  return (
+    typeof value.id === "string"
+    && typeof value.name === "string"
+    && Number.isFinite(value.strength)
+  );
+}
+
+function normalizeTransferMarket(transferMarket) {
+  return {
+    externalOffer: isPlainObject(transferMarket?.externalOffer) ? clone(transferMarket.externalOffer) : null,
+    availablePlayers: Array.isArray(transferMarket?.availablePlayers)
+      ? transferMarket.availablePlayers.filter(isTransferablePlayer)
+      : []
+  };
+}
+
 function isLeague(value) {
   return isPlainObject(value)
     && typeof value.id === "string"
@@ -197,9 +217,11 @@ function normalizeSaveData(value) {
     || !Number.isFinite(opponent.averageStrength)
     || !matchHistory.every(isMatchHistoryEntry)
     || !financeLedger.every(isFinanceLedgerEntry)
-    || !trainingMessages.every((message) => typeof message === "string")) {
-    return null;
-  }
+    || !trainingMessages.every((message) => typeof message === "string")
+    || (typeof value.transferMarket !== "undefined"
+      && !isPlainObject(value.transferMarket))) {
+  return null;
+}
 
   if (hasWorld && (!value.teams.every(isWorldTeam) || !value.leagues.every(isLeague))) {
     return null;
@@ -215,6 +237,8 @@ function normalizeSaveData(value) {
     financeLedger: clone(financeLedger).slice(-120),
     team: clone(team),
     opponent: clone(opponent),
+    transferMessages: clone(value.transferMessages ?? []).slice(0, 5),
+    transferMarket: normalizeTransferMarket(value.transferMarket),
     ...(hasWorld ? {
       selectedTeamId: value.selectedTeamId,
       season: clone(value.season ?? {}),
@@ -232,11 +256,13 @@ export function createSaveData(state) {
     money: state.money,
     clubName: state.clubName,
     managerName: state.managerName,
+    team: clone(state.team),
+    opponent: clone(state.opponent),
     matchHistory: clone(state.matchHistory ?? []).slice(0, 5),
     trainingMessages: clone(state.trainingMessages ?? []).slice(0, 8),
     financeLedger: clone(state.financeLedger ?? []).slice(-120),
-    team: clone(state.team),
-    opponent: clone(state.opponent),
+    transferMessages: clone(state.transferMessages ?? []).slice(0, 5),
+    transferMarket: normalizeTransferMarket(state.transferMarket),
     ...(Array.isArray(state.teams) && Array.isArray(state.leagues) ? {
       selectedTeamId: state.selectedTeamId,
       season: clone(state.season),

@@ -1,6 +1,5 @@
 import { uiCopy } from "../config.js";
-
-const logoImage = "./assets/logo.png";
+import logoImage from "../../assets/logo.png";
 
 export function renderStartScreen() {
   return `
@@ -13,8 +12,8 @@ export function renderStartScreen() {
           <p>${uiCopy.clubTagline}</p>
         </div>
         <div class="cta-stack">
-          <button class="action-button action-button--green" data-action="start-new" data-testid="start-game-button">Spiel starten</button>
-          <button class="action-button action-button--blue" data-action="show-club" data-testid="club-screen-button">Fortfahren</button>
+          <button class="action-button action-button--green" data-action="start-new" data-testid="start-game-button">Neues Spiel starten</button>
+          <button class="action-button action-button--blue" data-action="show-club" data-testid="club-screen-button">Spiel fortsetzen</button>
         </div>
       </div>
     </section>

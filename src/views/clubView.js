@@ -58,6 +58,15 @@ function createTileMarkup(label, state) {
     `;
   }
 
+  if (label === "Transfermarkt") {
+    return `
+      <button class="hub-tile hub-tile--primary" data-action="show-transfermarket" data-testid="transfer-market-tile">
+        <div class="hub-tile__icon">T</div>
+        <div class="hub-tile__label">Transfermarkt</div>
+      </button>
+    `;
+  }
+
   if (label === "Jugend") {
     const youthLevel = getDisplayTeam(state).youthAcademy.level;
     return `

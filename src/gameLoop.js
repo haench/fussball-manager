@@ -23,12 +23,14 @@ import {
   getTeamById,
   getUserTeam
 } from "./leagueWorld.js";
+import { processTransferMarketLoop } from "./domain/transferMarket.js";
 
 let activeLoopId = null;
 let matchStartTimeMs = 0;
 let lastFrameTimeMs = 0;
 let simulationAccumulatorMs = 0;
 const renderLoopIntervalMs = 33;
+const simulationStepMinutes = (matchConfig.simulationStepMs / matchConfig.matchDurationMs) * matchConfig.matchDurationMinutes;
 
 export function startMatch() {
   if (activeLoopId || gameState.match?.status === "playing") {
@@ -73,6 +75,46 @@ export function setTactic(tactic) {
   updateMatch((match) => {
     match.tactic = tactic;
   });
+}
+
+function getLiveMatchTeams(match) {
+  return {
+    homeTeam: match.homeTeamId ? gameState.teams?.find((team) => team.id === match.homeTeamId) ?? gameState.team : gameState.team,
+    awayTeam: match.awayTeamId ? gameState.teams?.find((team) => team.id === match.awayTeamId) ?? gameState.opponent : gameState.opponent
+  };
+}
+
+function finalizeMatchState(match) {
+  match.displayMinute = matchConfig.matchDurationMinutes;
+  match.minute = matchConfig.matchDurationMinutes;
+  match.simulatedMinutes = matchConfig.matchDurationMinutes;
+  match.status = "finished";
+  match.result = getResultSummary(match);
+}
+
+export function skipMatch() {
+  if (!gameState.match || gameState.match.status !== "playing") {
+    return;
+  }
+
+  updateMatch((match) => {
+    const { homeTeam, awayTeam } = getLiveMatchTeams(match);
+    simulateMatchLogicUntil(homeTeam, awayTeam, match, matchConfig.matchDurationMinutes);
+
+    const remainingVisualSteps = Math.max(
+      0,
+      Math.ceil((matchConfig.matchDurationMinutes - (match.simulatedMinutes ?? 0)) / simulationStepMinutes)
+    );
+
+    for (let index = 0; index < remainingVisualSteps; index += 1) {
+      simulateStep(homeTeam, awayTeam, match, simulationStepMinutes);
+    }
+
+    finalizeMatchState(match);
+  });
+
+  stopTimer();
+  setScreen("result");
 }
 
 export function continueAfterMatch() {
@@ -134,6 +176,7 @@ export function continueAfterMatch() {
     progressStadiumUpgrades(state);
     processTrainingAfterMatch(state);
     processYouthAfterMatch(state);
+    processTransferMarketLoop(state);
     state.postMatchReport = buildPostMatchReport(state, {
       completedMatchDay,
       leagueId: reportLeagueId,
@@ -178,7 +221,11 @@ function buildPostMatchReport(state, context) {
       leagueId: null,
       leagueName: "Freundschaftsspiel",
       matchDay: context.matchDay,
+      totalMatchDays: null,
       userMatchId: context.userMatchId,
+      userTeamId: state.selectedTeamId,
+      userStandingPosition: null,
+      standings: [],
       matchdayFixtures: [],
       seasonScheduleSnapshot: [],
       financeEntries,
@@ -188,6 +235,9 @@ function buildPostMatchReport(state, context) {
   }
 
   const seasonScheduleSnapshot = leagueSnapshot.schedule.map((fixture) => buildFixtureReport(fixture, state));
+  const standings = leagueSnapshot.standings.map((standing) => ({ ...standing }));
+  const userStandingPosition = standings.findIndex((standing) => standing.teamId === state.selectedTeamId) + 1;
+  const teamNamesById = Object.fromEntries(leagueSnapshot.teamIds.map((teamId) => [teamId, getTeamById(state, teamId)?.name ?? teamId]));
   return {
     seasonYear: context.seasonYear,
     leagueId: leagueSnapshot.id,
@@ -195,6 +245,10 @@ function buildPostMatchReport(state, context) {
     matchDay: context.matchDay,
     totalMatchDays: leagueSnapshot.totalMatchDays,
     userMatchId: context.userMatchId,
+    userTeamId: state.selectedTeamId,
+    userStandingPosition: userStandingPosition > 0 ? userStandingPosition : null,
+    teamNamesById,
+    standings,
     matchdayFixtures: seasonScheduleSnapshot.filter((fixture) => fixture.matchDay === context.matchDay),
     seasonScheduleSnapshot,
     financeEntries,
@@ -241,8 +295,7 @@ function runMatchLoop() {
 
   if (shouldUpdate) {
     updateMatch((match) => {
-      const homeTeam = match.homeTeamId ? gameState.teams?.find((team) => team.id === match.homeTeamId) ?? gameState.team : gameState.team;
-      const awayTeam = match.awayTeamId ? gameState.teams?.find((team) => team.id === match.awayTeamId) ?? gameState.opponent : gameState.opponent;
+      const { homeTeam, awayTeam } = getLiveMatchTeams(match);
       simulateMatchLogicUntil(
         homeTeam,
         awayTeam,
@@ -260,11 +313,7 @@ function runMatchLoop() {
       match.minute = nextDisplayMinute;
 
       if (shouldFinish) {
-        match.displayMinute = matchConfig.matchDurationMinutes;
-        match.minute = matchConfig.matchDurationMinutes;
-        match.simulatedMinutes = matchConfig.matchDurationMinutes;
-        match.status = "finished";
-        match.result = getResultSummary(match);
+        finalizeMatchState(match);
       }
     });
   }

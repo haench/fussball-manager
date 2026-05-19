@@ -7,6 +7,7 @@ import {
   getUserTeam,
   initializeLeagueWorld
 } from "../leagueWorld.js";
+import { formatCurrency } from "../ui/formatters.js";
 
 export const positionOrder = ["goalkeeper", "defender", "midfielder", "striker"];
 
@@ -256,7 +257,13 @@ function normalizePlayer(player, fallbackPlayer, index) {
     isStarter: typeof player?.isStarter === "boolean" ? player.isStarter : fallbackPlayer.isStarter,
     position: isValidPosition(player?.position)
       ? player.position
-      : fallbackPlayer.position ?? getFallbackPosition(index)
+      : fallbackPlayer.position ?? getFallbackPosition(index),
+    marketValue: Number.isFinite(player?.marketValue)
+      ? player.marketValue
+      : fallbackPlayer.marketValue ?? computeMarketValue(player?.strength ?? fallbackPlayer.strength),
+    isOnTransferList: typeof player?.isOnTransferList === "boolean"
+      ? player.isOnTransferList
+      : fallbackPlayer.isOnTransferList ?? false
   };
 }
 
@@ -304,6 +311,13 @@ function createInitialTeam() {
   });
 }
 
+function createTransferMarketState(transferMarket = {}) {
+  return {
+    externalOffer: transferMarket.externalOffer ?? null,
+    availablePlayers: Array.isArray(transferMarket.availablePlayers) ? transferMarket.availablePlayers : []
+  };
+}
+
 function createInitialState(screen = "start") {
   return {
     currentDay: 1,
@@ -327,7 +341,9 @@ function createInitialState(screen = "start") {
       name: "SV Neustadt",
       averageStrength: 32
     },
-    match: null
+    match: null,
+    transferMarket: createTransferMarketState(),
+    transferMessages: []
   };
 }
 
@@ -371,6 +387,361 @@ function syncUserTeamFinance(state = gameState) {
 function saveGame(state) {
   syncUserTeamFinance(state);
   return persistGame(state);
+}
+
+// ── Transfermarkt helpers ──────────────────────────────────────────────
+
+export function computeMarketValue(strength) {
+  return Math.round((strength * strength * 100) / 1000) * 1000;
+}
+
+function ensureTransferMarketState(state = gameState) {
+  state.transferMarket = createTransferMarketState(state.transferMarket);
+  return state.transferMarket;
+}
+
+function canTeamLosePlayer(team) {
+  return Array.isArray(team?.players) && team.players.length > 11;
+}
+
+function syncTeamTransferState(team, { repickStarters = false } = {}) {
+  if (!team) return;
+  if (repickStarters) {
+    applyBestElevenForFormation(team);
+  }
+  team.strength = calculateWorldTeamStrength(team);
+  if (team.finances) {
+    team.finances.weeklyWages = team.players.reduce((total, player) => total + (player.salaryPerMatchDay ?? 0), 0);
+  }
+}
+
+// Collect rival-team club IDs for the same league as the current user team.
+function getRivalTeamIds(state) {
+  if (!Array.isArray(state.teams) || !state.selectedTeamId) return [];
+  const userTeam = getUserTeam(state);
+  if (!userTeam) return [];
+  return state.teams
+    .filter((team) => team.leagueId === userTeam.leagueId && team.id !== state.selectedTeamId)
+    .map((team) => team.id);
+}
+
+/**
+ * Adds a log entry to the transfer-message queue (max 5, newest at front).
+ */
+export function addTransferMessage(entry) {
+  gameState.transferMessages ??= [];
+  const text = typeof entry === "string" ? entry : (entry.text ?? "");
+  gameState.transferMessages = [{ key: Date.now().toString(36), text }]
+    .concat(gameState.transferMessages)
+    .slice(0, 5);
+  saveGame(gameState);
+  notify();
+}
+
+/**
+ * Builds a "transferable player" record suitable for the buy-screen list.
+ * These represent players on OTHER clubs' rosters — never the user's squad.
+ */
+export function createTransferablePlayer(player, clubName, leagueId) {
+  return {
+    id: player.id,
+    name: player.name,
+    age: player.age ?? 20,
+    strength: player.strength,
+    marketValue: computeMarketValue(player.strength),
+    isOnTransferList: false,
+    clubId: player.clubId ?? "",
+    clubName: clubName ?? "",
+    leagueId: leagueId ?? "",
+    salaryPerMatchDay: player.salaryPerMatchDay ?? 0,
+    fatigue: player.fatigue ?? 0,
+    position: player.position ?? "midfielder",
+    isStarter: player.isStarter ?? false
+  };
+}
+
+/**
+ * Returns up to 5 random players from rival clubs of the same league.
+ * Called fresh every time "Kaufen" is opened.
+ */
+export function generateTransferMarketPlayers(state = gameState) {
+  const rivalIds = getRivalTeamIds(state);
+  const candidates = [];
+  state.teams.forEach((team) => {
+    if (!rivalIds.includes(team.id) || !canTeamLosePlayer(team)) return;
+    (team.players ?? []).forEach((player) => {
+      candidates.push(createTransferablePlayer(player, team.name, team.leagueId));
+    });
+  });
+  // Shuffle and take up to 5
+  for (let i = candidates.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const picked = candidates.slice(0, 5);
+  const transferMarket = ensureTransferMarketState(state);
+  transferMarket.availablePlayers = picked;
+  saveGame(state);
+  notify();
+  return picked;
+}
+
+/**
+ * Randomly generates an external purchase offer for the user's team.
+ * Listed players are checked with a 50 % chance after each match-day.
+ * Without a listing, bench players can still receive rarer offers.
+ */
+export function generateExternalOffer(state = gameState) {
+  const transferMarket = ensureTransferMarketState(state);
+  if (transferMarket.externalOffer) return null;
+
+  const userTeam = getUserTeam(state);
+  if (!userTeam || !canTeamLosePlayer(userTeam)) return null;
+
+  const listedPlayers = userTeam.players.filter((player) => player.isOnTransferList);
+  const fallbackPlayers = userTeam.players.filter((player) => !player.isStarter && !player.isOnTransferList);
+  const hasListedPlayers = listedPlayers.length > 0;
+  const offerChance = hasListedPlayers ? 0.5 : 0.1;
+  if (Math.random() >= offerChance) return null;
+
+  // Pick a random rival club name
+  const rivalIds = getRivalTeamIds(state);
+  const buyerTeam = rivalIds.length
+    ? state.teams.find((t) => t.id === rivalIds[Math.floor(Math.random() * rivalIds.length)])
+    : null;
+  const buyerClubName = buyerTeam?.name ?? "Unbekannter Verein";
+
+  const sellable = hasListedPlayers ? listedPlayers : fallbackPlayers;
+  if (!sellable.length) return null;
+  const player = sellable[Math.floor(Math.random() * sellable.length)];
+
+  const marketValue = computeMarketValue(player.strength);
+  const offerAmount = Math.round(marketValue * (player.isOnTransferList ? 1 : 0.8) / 1000) * 1000;
+
+  transferMarket.externalOffer = {
+    id: `offer-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    buyerTeamId: buyerTeam?.id ?? "",
+    buyerClubName,
+    playerId: player.id,
+    playerName: player.name,
+    offerAmount,
+    createdDay: state.currentDay,
+    expiresDay: state.currentDay + 1
+  };
+
+  addTransferMessage(`${buyerClubName} bietet ${formatCurrency(offerAmount)} für ${player.name}.`);
+  return transferMarket.externalOffer;
+}
+
+/**
+ * Process the transfer-market tick in the post-match loop.
+ * 1. Expires old offers after one match-day.
+ * 2. Generates a replacement offer immediately when the chance hits.
+ */
+export function processTransferMarketLoop(state = gameState) {
+  const tm = ensureTransferMarketState(state);
+
+  // Expire old offer
+  if (tm.externalOffer && tm.externalOffer.expiresDay <= state.currentDay) {
+    const name = tm.externalOffer.playerName;
+    addTransferMessage(`Angebot für ${name} ist abgelaufen.`);
+    tm.externalOffer = null;
+  }
+
+  // Try generate a fresh offer
+  generateExternalOffer(state);
+  saveGame(state);
+  notify();
+}
+
+/**
+ * Buys a transferable player from the market.
+ * Deducts market value from balance, adds to squad, logs the transaction.
+ */
+export function buyPlayer(transferablePlayer, state = gameState) {
+  const userTeam = getUserTeam(state) ?? state.team;
+  if (userTeam.players.some((p) => p.id === transferablePlayer.id)) {
+    addTransferMessage(`${transferablePlayer.name} gehört bereits zu deinem Kader.`);
+    saveGame(state);
+    notify();
+    return false; // already owned
+  }
+  const cost = transferablePlayer.marketValue ?? computeMarketValue(transferablePlayer.strength);
+  if (state.money < cost) {
+    addTransferMessage(`Nicht genug Geld für ${transferablePlayer.name} (${formatCurrency(cost)}).`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+
+  const sellerTeam = Array.isArray(state.teams)
+    ? state.teams.find((team) => team.id !== state.selectedTeamId && (team.players ?? []).some((player) => player.id === transferablePlayer.id))
+    : null;
+  if (!sellerTeam) {
+    addTransferMessage(`${transferablePlayer.name} konnte keinem anderen Verein zugeordnet werden.`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+  if (!canTeamLosePlayer(sellerTeam)) {
+    addTransferMessage(`${sellerTeam.name} kann ${transferablePlayer.name} nicht abgeben, weil dann nur 11 Spieler im Kader bleiben würden.`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+
+  state.money -= cost;
+  addFinanceLedgerEntry({
+    type: "expense",
+    category: "transfer",
+    label: `Kauf: ${transferablePlayer.name} für ${formatCurrency(cost)}`,
+    amount: -cost,
+    meta: { playerId: transferablePlayer.id }
+  }, state);
+  userTeam.players.push({
+    id: transferablePlayer.id,
+    name: transferablePlayer.name,
+    age: transferablePlayer.age,
+    strength: transferablePlayer.strength,
+    fatigue: transferablePlayer.fatigue ?? 0,
+    salaryPerMatchDay: transferablePlayer.salaryPerMatchDay ?? 0,
+    isStarter: false,
+    position: transferablePlayer.position ?? "midfielder",
+    marketValue: cost,
+    isOnTransferList: false
+  });
+  if (sellerTeam) {
+    sellerTeam.players = sellerTeam.players.filter((player) => player.id !== transferablePlayer.id);
+  }
+  syncTeamTransferState(userTeam);
+  syncTeamTransferState(sellerTeam, { repickStarters: true });
+  const transferMarket = ensureTransferMarketState(state);
+  transferMarket.availablePlayers = transferMarket.availablePlayers.filter((player) => player.id !== transferablePlayer.id);
+  addTransferMessage(`${transferablePlayer.name} für ${formatCurrency(cost)} gekauft.`);
+  saveGame(state);
+  notify();
+  return true;
+}
+
+/**
+ * Lists the named squad player for transfer (sets `isOnTransferList = true`).
+ */
+export function sellPlayer(playerId, state = gameState) {
+  const userTeam = getUserTeam(state) ?? state.team;
+  const player = userTeam.players.find((p) => p.id === playerId);
+  if (!player || player.isOnTransferList) return false;
+  ensureTransferMarketState(state);
+  player.isOnTransferList = true;
+  addTransferMessage(`${player.name} steht jetzt zum Verkauf.`);
+  saveGame(state);
+  notify();
+  return true;
+}
+
+/**
+ * Removes a player from the transfer list without selling.
+ */
+export function cancelSell(playerId, state = gameState) {
+  const userTeam = getUserTeam(state) ?? state.team;
+  const player = userTeam.players.find((p) => p.id === playerId);
+  if (!player) return false;
+  player.isOnTransferList = false;
+  const transferMarket = ensureTransferMarketState(state);
+  if (transferMarket.externalOffer?.playerId === playerId) {
+    addTransferMessage(`Angebot für ${player.name} zurückgezogen.`);
+    transferMarket.externalOffer = null;
+  }
+  addTransferMessage(`${player.name} wieder von der Liste genommen.`);
+  saveGame(state);
+  notify();
+  return true;
+}
+
+/**
+ * Accepts the current external offer: credits money, removes the player,
+ * records income, clears the offer.
+ */
+export function acceptExternalOffer(state = gameState) {
+  const transferMarket = ensureTransferMarketState(state);
+  const offer = transferMarket.externalOffer;
+  if (!offer) return false;
+
+  const userTeam = getUserTeam(state) ?? state.team;
+  const player = userTeam.players.find((p) => p.id === offer.playerId);
+  if (!player) {
+    transferMarket.externalOffer = null;
+    addTransferMessage(`Angebot für ${offer.playerName} ist nicht mehr gültig.`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+  if (!canTeamLosePlayer(userTeam)) {
+    transferMarket.externalOffer = null;
+    addTransferMessage(`${offer.playerName} kann nicht verkauft werden, weil dann nur 11 Spieler im Kader bleiben würden.`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+
+  const buyerTeam = getTeamById(state, offer.buyerTeamId);
+  if (!buyerTeam) {
+    transferMarket.externalOffer = null;
+    addTransferMessage(`Angebot für ${offer.playerName} konnte keinem Verein mehr zugeordnet werden.`);
+    saveGame(state);
+    notify();
+    return false;
+  }
+
+  const amount = offer.offerAmount;
+  state.money += amount;
+  addFinanceLedgerEntry({
+    type: "income",
+    category: "transfer",
+    label: `Verkauf: ${offer.playerName} an ${offer.buyerClubName} für ${formatCurrency(amount)}`,
+    amount,
+    meta: { offerId: offer.id }
+  }, state);
+
+  // Remove player from squad
+  userTeam.players = userTeam.players.filter((p) => p.id !== offer.playerId);
+
+  // If player was a starter, replace with best available bench player
+  if (player.isStarter) {
+    const benchPlayers = userTeam.players.filter((p) => !p.isStarter);
+    if (benchPlayers.length > 0) {
+      const replacement = [...benchPlayers].sort((a, b) => b.strength - a.strength)[0];
+      replacement.isStarter = true;
+      addTransferMessage(`Automatischer Ersatz: ${replacement.name} kommt in die Startelf.`);
+    }
+  }
+
+  buyerTeam.players.push({
+    ...player,
+    isStarter: false,
+    isOnTransferList: false,
+    marketValue: computeMarketValue(player.strength)
+  });
+  syncTeamTransferState(userTeam);
+  syncTeamTransferState(buyerTeam, { repickStarters: true });
+  addTransferMessage(`${offer.playerName} von ${offer.buyerClubName} angenommen (${formatCurrency(amount)}).`);
+  transferMarket.externalOffer = null;
+  saveGame(state);
+  notify();
+  return true;
+}
+
+/**
+ * Rejects the current external offer without any financial transaction.
+ */
+export function rejectExternalOffer(state = gameState) {
+  const offer = ensureTransferMarketState(state).externalOffer;
+  if (!offer) return false;
+
+  addTransferMessage(`Angebot für ${offer.playerName} von ${offer.buyerClubName} abgelehnt.`);
+  ensureTransferMarketState(state).externalOffer = null;
+  saveGame(state);
+  notify();
+  return true;
 }
 
 export const gameState = createInitialState();

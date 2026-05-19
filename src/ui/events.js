@@ -1,4 +1,4 @@
-import { continueAfterMatch, setTactic, startMatch } from "../gameLoop.js";
+import { continueAfterMatch, setTactic, skipMatch, startMatch } from "../gameLoop.js";
 import {
   acceptYouthOffer,
   autoPickBestEleven,
@@ -8,6 +8,8 @@ import {
   continueGame,
   createNewGame,
   finishPostMatchReport,
+  generateTransferMarketPlayers,
+  gameState,
   rejectYouthOffer,
   setFormation,
   setPlayerStarter,
@@ -17,6 +19,13 @@ import {
   startTrainingFacilityUpgrade,
   startYouthAcademyUpgrade
 } from "../state.js";
+import {
+  acceptExternalOffer,
+  buyPlayer,
+  cancelSell,
+  rejectExternalOffer,
+  sellPlayer
+} from "../domain/transferMarket.js";
 
 export function bindEvents({ leagueSourceData }) {
   document.querySelector('[data-action="start-new"]')?.addEventListener("click", () => createNewGame(leagueSourceData));
@@ -28,6 +37,13 @@ export function bindEvents({ leagueSourceData }) {
   document.querySelector('[data-action="show-youth"]')?.addEventListener("click", () => setScreen("youth"));
   document.querySelector('[data-action="show-stadium"]')?.addEventListener("click", () => setScreen("stadium"));
   document.querySelector('[data-action="show-finance-report"]')?.addEventListener("click", () => setScreen("financeReport"));
+  document.querySelector('[data-action="show-matchday-standings-report"]')?.addEventListener("click", () => {
+    if (gameState.postMatchReport?.standings?.length) {
+      setScreen("matchdayStandingsReport");
+      return;
+    }
+    setScreen("financeReport");
+  });
   document.querySelector('[data-action="finish-post-match"]')?.addEventListener("click", () => finishPostMatchReport());
   document.querySelector('[data-action="back-club"]')?.addEventListener("click", () => setScreen("club"));
   document.querySelector('[data-action="upgrade-training"]')?.addEventListener("click", () => startTrainingFacilityUpgrade());
@@ -64,5 +80,36 @@ export function bindEvents({ leagueSourceData }) {
   document.querySelector('[data-action="continue"]')?.addEventListener("click", () => continueAfterMatch());
   document.querySelectorAll('[data-action="set-tactic"]').forEach((button) => {
     button.addEventListener("click", () => setTactic(button.dataset.tactic));
+  });
+  document.querySelector('[data-action="skip-match"]')?.addEventListener("click", () => skipMatch());
+
+  // ── Transfermarkt ────────────────────────────────────────────────────
+  document.querySelector('[data-action="show-transfermarket"]')?.addEventListener("click", () => setScreen("transferMarket"));
+  document.querySelector('[data-action="show-transfer-buy"]')?.addEventListener("click", () => {
+    generateTransferMarketPlayers();
+    setScreen("transferMarket-buy");
+  });
+  document.querySelector('[data-action="show-transfer-sell"]')?.addEventListener("click", () => setScreen("transferMarket-sell"));
+  document.querySelector('[data-action="accept-offer"]')?.addEventListener("click", () => acceptExternalOffer());
+  document.querySelector('[data-action="reject-offer"]')?.addEventListener("click", () => rejectExternalOffer());
+  document.querySelector('[data-action="back-transfer"]')?.addEventListener("click", () => setScreen("transferMarket"));
+  document.querySelectorAll('[data-action="sell-player"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      sellPlayer(button.dataset.playerId);
+    });
+  });
+  document.querySelectorAll('[data-action="cancel-sell"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.disabled) return;
+      cancelSell(button.dataset.playerId);
+    });
+  });
+  document.querySelectorAll('[data-action="buy-player"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      const player = gameState.transferMarket?.availablePlayers?.find((entry) => entry.id === button.dataset.playerId);
+      if (!player) return;
+      buyPlayer(player);
+    });
   });
 }

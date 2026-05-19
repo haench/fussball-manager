@@ -96,8 +96,8 @@ export function renderRosterScreen(state) {
         </section>
 
         <div class="roster-actions">
-          <button class="action-button action-button--blue roster-action" data-action="auto-pick" data-testid="auto-pick-button">Beste 11 automatisch</button>
-          <button class="action-button action-button--green roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
+          <button class="action-button action-button--green roster-action" data-action="auto-pick" data-testid="auto-pick-button">Beste 11 automatisch</button>
+          <button class="action-button action-button--blue roster-action" data-action="back-club" data-testid="back-club-button">Zurück</button>
         </div>
 
         ${renderRosterGroup("Startelf", starters, "Keine Startspieler gewählt.")}

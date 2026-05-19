@@ -44,7 +44,7 @@ export const uiTheme = {
 
 export const uiCopy = {
   clubTagline: "Baue deinen Verein Schritt für Schritt zum Spitzenclub auf.",
-  inactiveTiles: ["Kader", "Training", "Jugend", "Stadion"],
+  inactiveTiles: ["Transfermarkt", "Kader", "Training", "Jugend", "Stadion"],
   tacticButtons: ["Aggressiv", "Normal", "Defensiv"]
 };
 
