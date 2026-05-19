@@ -1,13 +1,12 @@
 import { getTeamById } from "../leagueWorld.js";
 import { getCrest } from "../ui/viewHelpers.js";
+import goalSplashImage from "../../assets/Tor.png";
 
 export const tacticButtons = [
   { id: "aggressive", label: "Aggressiv", testId: "tactic-aggressive" },
   { id: "normal", label: "Normal", testId: "tactic-normal" },
   { id: "defensive", label: "Defensiv", testId: "tactic-defensive" }
 ];
-
-const goalSplashImage = "./assets/Tor.png";
 
 export function toPercent(value) {
   return `${value * 100}%`;
@@ -110,6 +109,13 @@ export function renderMatchScreen(state) {
 
         <footer class="tactic-bar">
           ${renderTacticButtons(match.tactic)}
+          <button
+            class="action-button action-button--blue tactic-bar__skip"
+            data-action="skip-match"
+            data-testid="skip-match-button"
+          >
+            Überspringen
+          </button>
         </footer>
       </div>
     </section>

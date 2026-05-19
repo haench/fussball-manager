@@ -286,6 +286,11 @@ button:disabled {
     linear-gradient(180deg, #40abff 0%, #1d7fff 55%, #0a57cd 100%);
 }
 
+.action-button--red {
+  background:
+    linear-gradient(180deg, #ff7373 0%, #ea2f32 55%, #a11219 100%);
+}
+
 /* Club */
 .glossy-panel {
   border-radius: var(--border-radius-lg);
@@ -648,6 +653,84 @@ button.hub-tile {
   font-weight: 700;
 }
 
+.transfer-feed {
+  display: grid;
+  gap: 12px;
+}
+
+.transfer-feed__messages p:first-child {
+  margin-top: 0;
+}
+
+.transfer-offer-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(140, 215, 31, 0.28);
+  background: linear-gradient(180deg, rgba(140, 215, 31, 0.18), rgba(32, 77, 19, 0.2));
+}
+
+.transfer-offer-card__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.transfer-offer-card__copy span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.transfer-offer-card__copy strong,
+.transfer-offer-card__value,
+.transfer-budget strong {
+  color: var(--green);
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.transfer-offer-card__copy strong {
+  font-size: 1.45rem;
+}
+
+.transfer-offer-card__value {
+  font-size: 1.7rem;
+  white-space: nowrap;
+}
+
+.transfer-offer-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transfer-budget {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.transfer-budget span {
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.transfer-budget strong {
+  font-size: 1.5rem;
+}
+
 .roster-summary {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -784,6 +867,12 @@ button.hub-tile {
   font-size: 1.35rem;
 }
 
+.roster-row__value {
+  color: var(--text);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .roster-row__age {
   color: var(--muted);
   font-weight: 800;
@@ -814,12 +903,82 @@ button.hub-tile {
 }
 
 .roster-row__button {
-  min-height: 40px;
+  min-height: 48px;
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(64, 171, 255, 0.95), rgba(10, 87, 205, 0.95));
   color: #fff;
+  font-size: 0.95rem;
   font-weight: 800;
+  line-height: 1.1;
+  padding: 0 14px;
   box-shadow: 0 8px 14px rgba(0, 0, 0, 0.24);
+}
+
+.roster-table__head--transfer-buy,
+.roster-row--transfer-buy {
+  grid-template-columns: minmax(0, 1.3fr) 84px 74px 112px 140px;
+}
+
+.roster-table__head--transfer-sell,
+.roster-row--transfer-sell {
+  grid-template-columns: 58px minmax(0, 1.2fr) 84px 74px 112px 140px;
+}
+
+.roster-row--transfer-buy {
+  min-height: 50px;
+  margin-top: 6px;
+  padding: 8px 10px;
+}
+
+.roster-row--transfer-buy .roster-row__button {
+  min-height: 40px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0 10px;
+}
+
+.roster-row--transfer-buy .roster-row__button.action-button--green {
+  background:
+    linear-gradient(180deg, #9ef12d 0%, #6fbe13 55%, #3b860d 100%);
+}
+
+.roster-row--transfer-buy .roster-row__button.action-button--blue {
+  background:
+    linear-gradient(180deg, #40abff 0%, #1d7fff 55%, #0a57cd 100%);
+}
+
+.roster-row--transfer-sell {
+  min-height: 50px;
+  margin-top: 6px;
+  padding: 8px 10px;
+}
+
+.roster-row--listed {
+  border-color: rgba(140, 215, 31, 0.36);
+  background: linear-gradient(180deg, rgba(140, 215, 31, 0.14), rgba(23, 70, 21, 0.2));
+}
+
+.roster-row--transfer-sell .roster-row__status {
+  display: none;
+}
+
+.roster-row--transfer-sell .roster-row__button {
+  min-height: 40px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  padding: 0 10px;
+}
+
+.roster-row--transfer-sell .roster-row__button.action-button--green {
+  background:
+    linear-gradient(180deg, #9ef12d 0%, #6fbe13 55%, #3b860d 100%);
+}
+
+.roster-row--transfer-sell .roster-row__button.action-button--blue {
+  background:
+    linear-gradient(180deg, #40abff 0%, #1d7fff 55%, #0a57cd 100%);
 }
 
 .roster-empty {
@@ -1404,18 +1563,28 @@ button.hub-tile {
 
 .tactic-bar {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
-.tactic-button {
+.tactic-button,
+.tactic-bar__skip {
+  display: grid;
+  place-items: center;
+  min-width: 0;
   min-height: 68px;
   border-radius: 22px;
+  padding: 0 8px;
+  text-align: center;
+  line-height: 1;
+  font-size: 0.96rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.tactic-button {
   border: 2px solid rgba(255, 255, 255, 0.18);
   background: linear-gradient(180deg, rgba(20, 73, 139, 0.96), rgba(5, 25, 53, 0.96));
   color: rgba(255, 255, 255, 0.88);
-  font-size: 1.05rem;
-  box-shadow: var(--shadow-panel);
 }
 
 .tactic-button--active {
@@ -1425,6 +1594,16 @@ button.hub-tile {
 .tactic-button[aria-pressed="true"] {
   border-color: rgba(140, 215, 31, 0.64);
   color: #fff;
+}
+
+.tactic-bar__skip {
+  min-height: 68px;
+  border-width: 2px;
+  border-radius: 22px;
+  font-size: 0.74rem;
+  font-family: "Trebuchet MS", "Arial Narrow", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .result-hero {
@@ -1643,6 +1822,7 @@ button.hub-tile {
 .screen__backdrop,
 .screen--start .screen__backdrop,
 .screen--club .screen__backdrop,
+.screen--transfer-market .screen__backdrop,
 .screen--match .screen__backdrop,
 .screen--result .screen__backdrop {
   background:
@@ -1709,8 +1889,21 @@ button.hub-tile {
     border-radius: 20px;
   }
 
-  .tactic-button {
+  .tactic-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .tactic-button,
+  .tactic-bar__skip {
     border-radius: 16px;
+    min-height: 56px;
+    padding: 0 4px;
+    font-size: 0.72rem;
+  }
+
+  .tactic-bar__skip {
+    font-size: 0.58rem;
   }
 
   .roster-actions {
@@ -1720,6 +1913,14 @@ button.hub-tile {
 
   .recent-matches__list {
     gap: 9px;
+  }
+
+  .transfer-offer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .transfer-budget {
+    margin-bottom: 12px;
   }
 }
 
@@ -1740,9 +1941,24 @@ button.hub-tile {
   .roster-summary,
   .finance-summary,
   .stadium-revenue,
-  .stands-grid,
-  .tactic-bar {
+  .stands-grid {
     grid-template-columns: 1fr;
+  }
+
+  .tactic-bar {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .tactic-button,
+  .tactic-bar__skip {
+    min-height: 58px;
+    padding: 0 6px;
+    font-size: 0.76rem;
+  }
+
+  .tactic-bar__skip {
+    font-size: 0.62rem;
   }
 
   /* scoreboard overlay: comfortable height to clear score */
@@ -1794,6 +2010,84 @@ button.hub-tile {
   }
   .roster-row__button {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .roster-row--transfer-buy {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name strength"
+      "age value"
+      "button button";
+  }
+
+  .roster-row--transfer-buy .roster-row__name {
+    grid-area: name;
+  }
+
+  .roster-row--transfer-buy .roster-row__age {
+    grid-area: age;
+  }
+
+  .roster-row--transfer-buy .roster-row__strength {
+    grid-area: strength;
+    justify-self: end;
+  }
+
+  .roster-row--transfer-buy .roster-row__value {
+    grid-area: value;
+    justify-self: end;
+  }
+
+  .roster-row--transfer-buy .roster-row__button {
+    grid-area: button;
+    width: 100%;
+  }
+
+  .roster-row--transfer-sell {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "position name strength"
+      "position age value"
+      "status status status"
+      "button button button";
+  }
+
+  .roster-row--transfer-sell .roster-row__position {
+    grid-area: position;
+    align-self: start;
+  }
+
+  .roster-row--transfer-sell .roster-row__name {
+    grid-area: name;
+  }
+
+  .roster-row--transfer-sell .roster-row__age {
+    grid-area: age;
+  }
+
+  .roster-row--transfer-sell .roster-row__strength {
+    grid-area: strength;
+    justify-self: end;
+  }
+
+  .roster-row--transfer-sell .roster-row__value {
+    grid-area: value;
+    justify-self: end;
+  }
+
+  .roster-row--transfer-sell .roster-row__status {
+    grid-area: status;
+    display: block;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .roster-row--transfer-sell .roster-row__button {
+    grid-area: button;
+    width: 100%;
   }
 }
 
@@ -1876,4 +2170,12 @@ button.hub-tile {
     min-height: 92px;
     font-size: var(--font-button);
   }
+}
+.action-button--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.action-button--small {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
 }

@@ -14,6 +14,7 @@ export function renderMatchdayReportScreen(state) {
   if (!report) {
     return "";
   }
+  const nextAction = report.standings?.length ? "show-matchday-standings-report" : "show-finance-report";
 
   return `
     <section class="screen screen--club screen--matchday-report">
@@ -38,6 +39,70 @@ export function renderMatchdayReportScreen(state) {
               ? report.matchdayFixtures.map((fixture) => renderFixtureRow(fixture)).join("")
               : `<p class="report-empty">Keine Ligaspiele gefunden.</p>`}
           </div>
+        </section>
+
+        <button class="action-button action-button--green roster-action" data-action="${nextAction}" data-testid="show-matchday-report-next-button">Weiter</button>
+      </div>
+    </section>
+  `;
+}
+
+export function renderMatchdayStandingsReportScreen(state) {
+  const report = state.postMatchReport;
+  if (!report) {
+    return "";
+  }
+
+  if (!report.standings?.length) {
+    return "";
+  }
+
+  return `
+    <section class="screen screen--club screen--matchday-standings-report">
+      <div class="screen__backdrop"></div>
+      <div class="mobile-shell mobile-shell--roster" data-testid="matchday-standings-report-screen">
+        <header class="club-header club-header--roster glossy-panel">
+          <div class="club-header__crest">${getCrest(getDisplayTeam(state))}</div>
+          <div class="club-header__main">
+            <div class="eyebrow">Tabelle nach dem Spieltag</div>
+            <h1>${report.leagueName}</h1>
+            <p>Saison ${report.seasonYear} · Spieltag ${report.matchDay}/${report.totalMatchDays ?? seasonMatchDays}</p>
+          </div>
+          <div class="club-header__strength">
+            <span>Platz</span>
+            <strong>${report.userStandingPosition ?? "-"}</strong>
+          </div>
+        </header>
+
+        <section class="standings-table glossy-panel">
+          <div class="report-card__headline">
+            <span>Tabelle nach Spieltag ${report.matchDay}</span>
+            <strong>${report.standings.length} Vereine</strong>
+          </div>
+          <div class="standings-row standings-row--head">
+            <span>Pl.</span>
+            <span>Verein</span>
+            <span>Sp.</span>
+            <span>S</span>
+            <span>U</span>
+            <span>N</span>
+            <span>Tore</span>
+            <span>Diff.</span>
+            <span>Pkt.</span>
+          </div>
+          ${report.standings.map((standing, index) => `
+            <div class="standings-row ${standing.teamId === report.userTeamId ? "standings-row--user" : ""}">
+              <span>${index + 1}</span>
+              <span>${report.teamNamesById?.[standing.teamId] ?? standing.teamId}</span>
+              <span>${standing.played}</span>
+              <span>${standing.wins}</span>
+              <span>${standing.draws}</span>
+              <span>${standing.losses}</span>
+              <span>${standing.goalsFor}:${standing.goalsAgainst}</span>
+              <span>${standing.goalDifference}</span>
+              <strong>${standing.points}</strong>
+            </div>
+          `).join("")}
         </section>
 
         <button class="action-button action-button--green roster-action" data-action="show-finance-report" data-testid="show-finance-report-button">Weiter</button>

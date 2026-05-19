@@ -1,3 +1,4 @@
+import leagueSourceData from "../data/fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json";
 import { gameState, subscribe } from "./state.js";
 import { bindEvents } from "./ui/events.js";
 import { renderClubScreen } from "./views/clubView.js";
@@ -10,13 +11,20 @@ import {
   tacticButtons,
   toPercent
 } from "./views/matchView.js";
-import { renderFinanceReportScreen, renderMatchdayReportScreen } from "./views/reportViews.js";
+import {
+  renderFinanceReportScreen,
+  renderMatchdayReportScreen,
+  renderMatchdayStandingsReportScreen
+} from "./views/reportViews.js";
 import { renderRosterScreen } from "./views/rosterView.js";
+import {
+  renderTransferMarketBuyScreen,
+  renderTransferMarketHomeScreen,
+  renderTransferMarketSellScreen
+} from "./views/transferMarketScreens.js";
 import { renderStadiumScreen } from "./views/stadiumView.js";
 import { renderStartScreen } from "./views/startView.js";
 
-const response = await fetch("./data/fussball_manager_1_2_3_liga_fiktiv_anonymisiert.json");
-const leagueSourceData = await response.json();
 const app = document.getElementById("app");
 
 function render() {
@@ -44,8 +52,16 @@ function render() {
     markup = renderSeasonScheduleScreen(gameState) || renderClubScreen(gameState);
   } else if (gameState.currentScreen === "matchdayReport") {
     markup = renderMatchdayReportScreen(gameState) || renderClubScreen(gameState);
+  } else if (gameState.currentScreen === "matchdayStandingsReport") {
+    markup = renderMatchdayStandingsReportScreen(gameState) || renderFinanceReportScreen(gameState) || renderClubScreen(gameState);
   } else if (gameState.currentScreen === "financeReport") {
     markup = renderFinanceReportScreen(gameState) || renderClubScreen(gameState);
+  } else if (gameState.currentScreen === "transferMarket") {
+    markup = renderTransferMarketHomeScreen(gameState) || renderClubScreen(gameState);
+  } else if (gameState.currentScreen === "transferMarket-buy") {
+    markup = renderTransferMarketBuyScreen(gameState) || renderTransferMarketHomeScreen(gameState);
+  } else if (gameState.currentScreen === "transferMarket-sell") {
+    markup = renderTransferMarketSellScreen(gameState) || renderTransferMarketHomeScreen(gameState);
   } else if (gameState.currentScreen === "match") {
     markup = renderMatchScreen(gameState);
   } else if (gameState.currentScreen === "result") {
